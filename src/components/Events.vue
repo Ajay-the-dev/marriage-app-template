@@ -1,349 +1,351 @@
 <template>
     <Basic>
-        <section class="events-section p-2">
+        <section class="events-section">
           <div class="container py-5">
-            
+
             <!-- Section Header -->
             <div class="text-center mb-5 header-block">
-                <span class="sub-title">Join Our Celebrations</span>
-                <h2 class="main-title">The Wedding Itinerary</h2>
-                <div class="luxury-divider">
+              <span class="sub-title">Join Our Celebrations</span>
+              <h2 class="main-title">The Wedding Itinerary</h2>
+              <div class="luxury-divider">
                 <span class="line"></span>
                 <i class="fa-solid fa-heart divider-icon"></i>
                 <span class="line"></span>
-                </div>
+              </div>
             </div>
 
-            <!-- Events Timeline Matrix -->
-            <div class="events-timeline">
-                <div 
-                v-for="(event, index) in weddingEvents" 
-                :key="index" 
-                class="event-card-wrapper"
-                :class="index % 2 === 0 ? 'left-aligned' : 'right-aligned'"
-                >
-                <!-- Elegant Floating Date Badge -->
-                <div class="date-badge">
-                    <span class="day">{{ event.day }}</span>
-                    <span class="month">{{ event.month }}</span>
+            <!-- Events Stack -->
+            <div class="events-list mb-5">
+              <div
+                v-for="(event, index) in weddingEvents"
+                :key="index"
+                class="event-row"
+              >
+                <!-- Left: Number + date -->
+                <div class="event-meta">
+                  <span class="event-num">0{{ index + 1 }}</span>
+                  <div class="event-date">
+                    <span class="date-day">{{ event.day }}</span>
+                    <span class="date-month">{{ event.month }}</span>
+                  </div>
                 </div>
 
-                <!-- Main Event Display Card -->
+                <!-- Connector dot -->
+                <div class="connector">
+                  <div class="dot"></div>
+                  <div class="thread" v-if="index < weddingEvents.length - 1"></div>
+                </div>
+
+                <!-- Right: Card -->
                 <div class="event-card">
-                    <div class="card-accent"></div>
-                    
-                    <h3 class="event-title">{{ event.name }}</h3>
-                    
-                    <div class="event-details">
-                    <!-- Time Frame -->
-                    <div class="detail-item">
-                        <i class="fa-regular fa-clock detail-icon text-sage"></i>
-                        <span>{{ event.time }}</span>
-                    </div>
-                    
-                    <!-- Location/Venue -->
-                    <div class="detail-item mt-2">
-                        <i class="fa-solid fa-location-dot detail-icon text-gold"></i>
-                        <div class="venue-info">
-                        <strong>{{ event.venue }}</strong>
-                        <span class="location-sub">{{ event.location }}</span>
-                        </div>
-                    </div>
-                    </div>
+                  <h3 class="event-name">{{ event.name }}</h3>
 
-                    <!-- Action Triggers -->
-                    <div class="card-actions mt-4">
-                    <a 
-                        :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(event.venue + ' ' + event.location)" 
-                        target="_blank" 
-                        class="action-btn map-btn"
-                    >
-                        <i class="fa-solid fa-map-location-dot me-2"></i> View Map
-                    </a>
+                  <div class="event-info">
+                    <div class="info-row">
+                      <i class="fa-regular fa-clock"></i>
+                      <span>{{ event.time }}</span>
                     </div>
+                    <div class="info-row">
+                      <i class="fa-solid fa-location-dot"></i>
+                      <span>{{ event.venue }}, <em>{{ event.location }}</em></span>
+                    </div>
+                  </div>
+
+                  <a
+                    :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(event.venue + ' ' + event.location)"
+                    target="_blank"
+                    class="map-link"
+                  >
+                    <i class="fa-solid fa-map-location-dot"></i> View on Map
+                  </a>
                 </div>
-                </div>
+              </div>
             </div>
 
           </div>
         </section>
     </Basic>
 </template>
+
 <script setup>
-import { ref,onMounted } from "vue";
+import { ref } from "vue";
 import Basic from "@/views/Basic.vue";
 
 const weddingEvents = ref([
   {
     name: 'Haldi',
     day: '11',
-    month: 'July',
-    time: '5:00 PM - 10:00 PM',
+    month: 'Jul',
+    time: '5:00 PM – 10:00 PM',
     venue: 'Green Nest',
     location: 'Kumbalangi'
   },
   {
     name: 'Wedding',
     day: '12',
-    month: 'July',
-    time: '10:30 AM - 11:30 AM',
+    month: 'Jul',
+    time: '10:30 AM – 11:30 AM',
     venue: 'Green Nest',
     location: 'Kumbalangi'
   },
   {
     name: 'Reception 1',
     day: '14',
-    month: 'July',
-    time: '11:00 AM - 03:00 PM',
+    month: 'Jul',
+    time: '11:00 AM – 3:00 PM',
     venue: 'Grand Auditorium',
     location: 'Chittur'
   },
   {
     name: 'Reception 2',
     day: '16',
-    month: 'July',
-    time: '05:30 PM - 09:00 PM',
+    month: 'Jul',
+    time: '5:30 PM – 9:00 PM',
     venue: "Parish Hall, St. Mary's Church",
     location: 'Kalathoor'
   }
 ]);
 </script>
+
 <style lang="scss" scoped>
-/* Base Setup & Containers */
 .events-section {
   background-color: var(--cream);
   color: var(--text);
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', serif;
   min-height: 100vh;
-  position: relative;
-  overflow: hidden;
 }
 
-/* Typography Header Layout */
+/* ── Header ── */
 .sub-title {
-  font-size: 0.9rem;
+  display: block;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 3px;
   color: var(--sage);
   font-weight: 600;
+  font-family: 'Cormorant Garamond', serif;
 }
 
 .main-title {
   color: var(--dark);
-  font-size: 2.8rem;
-  margin-top: 8px;
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  margin-top: 6px;
+  font-family: 'Cinzel Decorative', cursive;
+  font-weight: 400;
 }
 
 .luxury-divider {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 15px;
-  
+  margin-top: 14px;
+
   .line {
     height: 1px;
-    width: 60px;
+    width: 50px;
     background-color: var(--gold-light);
   }
   .divider-icon {
-    margin: 0 15px;
+    margin: 0 12px;
     color: var(--gold);
-    font-size: 0.8rem;
+    font-size: 0.7rem;
   }
 }
 
-/* Timeline Layout */
-.events-timeline {
-  position: relative;
-  max-width: 850px;
-  margin: 50px auto 0 auto;
-  padding: 20px 0;
+/* ── Events List ── */
+.events-list {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 10px 0 40px;
+}
 
-  /* Central connecting thread line */
+.event-row {
+  display: grid;
+  grid-template-columns: 64px 28px 1fr;
+  gap: 0 12px;
+  align-items: start;
+  margin-bottom: 0;
+}
+
+/* ── Left meta column ── */
+.event-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-top: 14px;
+  gap: 4px;
+}
+
+.event-num {
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  color: var(--gold-light);
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.event-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.date-day {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--dark);
+  line-height: 1;
+  font-family: 'Cinzel Decorative', cursive;
+}
+
+.date-month {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--gold-dark);
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+}
+
+/* ── Connector column ── */
+.connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--gold);
+  border: 2px solid var(--cream);
+  box-shadow: 0 0 0 1px var(--gold-light);
+  flex-shrink: 0;
+}
+
+.thread {
+  width: 1px;
+  flex: 1;
+  min-height: 60px;
+  background: linear-gradient(to bottom, var(--gold-light), transparent);
+  margin-top: 6px;
+}
+
+/* ── Card ── */
+.event-card {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--gold-light) 35%, transparent);
+  border-radius: 16px;
+  padding: 16px 18px 14px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 18px rgba(61, 44, 20, 0.05);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  position: relative;
+  overflow: hidden;
+
+  /* top accent bar */
   &::before {
     content: '';
     position: absolute;
     top: 0;
-    bottom: 0;
-    left: 50%;
-    width: 1px;
-    background-color: var(--gold-light);
-    transform: translateX(-50%);
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold-light), transparent);
+    border-radius: 0 0 4px 4px;
   }
-}
-
-/* Structural Layout for Individual Alternating Blocks */
-.event-card-wrapper {
-  position: relative;
-  width: 50%;
-  margin-bottom: 60px;
-  display: flex;
-  box-sizing: border-box;
-
-  &.left-aligned {
-    left: 0;
-    padding-right: 50px;
-    justify-content: flex-end;
-    .date-badge { right: -24px; }
-  }
-
-  &.right-aligned {
-    left: 50%;
-    padding-left: 50px;
-    justify-content: flex-start;
-    .date-badge { left: -24px; }
-  }
-}
-
-/* Date Badge Capsule */
-.date-badge {
-  position: absolute;
-  top: 30px;
-  width: 50px;
-  height: 50px;
-  background-color: var(--blush);
-  border: 1px solid var(--gold);
-  border-radius: 50%;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-
-  .day {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--dark);
-    line-height: 1;
-  }
-  .month {
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    color: var(--gold-dark);
-    letter-spacing: 0.5px;
-    font-weight: 600;
-  }
-}
-
-/* Event Luxury Card styling */
-.event-card {
-  background-color: #ffffff;
-  border: 1px solid color-mix(in srgb, var(--gold-light) 40%, transparent);
-  border-radius: 20px;
-  padding: 30px;
-  width: 100%;
-  max-width: 360px;
-  position: relative;
-  box-shadow: 0 10px 25px rgba(61, 44, 20, 0.04);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 
   &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 15px 35px rgba(154, 122, 69, 0.12);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(154, 122, 69, 0.1);
   }
 }
 
-.card-accent {
-  position: absolute;
-  top: 0;
-  left: 30px;
-  right: 30px;
-  height: 3px;
-  background: linear-gradient(90deg, var(--gold-light), var(--gold-dark));
-  border-radius: 0 0 4px 4px;
-}
-
-.event-title {
+.event-name {
+  font-family: 'Cinzel Decorative', cursive;
+  font-size: clamp(0.95rem, 3vw, 1.15rem);
+  font-weight: 400;
   color: var(--dark);
-  font-size: 1.6rem;
-  margin-bottom: 20px;
+  margin: 0 0 10px;
 }
 
-/* Inner Details Frame */
-.event-details {
-  font-family: 'Inter', sans-serif; /* Clean sans-serif readable font for metadata details */
+.event-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
 }
 
-.detail-item {
+.info-row {
   display: flex;
   align-items: flex-start;
-  font-size: 0.95rem;
+  gap: 8px;
+  font-size: clamp(0.78rem, 2.5vw, 0.88rem);
   color: var(--text);
+  line-height: 1.4;
+  font-family: 'Cormorant Garamond', serif;
 
-  .detail-icon {
-    width: 20px;
+  i {
+    color: var(--gold-dark);
+    font-size: 0.8rem;
     margin-top: 3px;
-    font-size: 1rem;
-    margin-right: 12px;
+    flex-shrink: 0;
+    width: 14px;
+  }
+
+  em {
+    font-style: normal;
+    opacity: 0.7;
   }
 }
 
-.text-sage { color: var(--sage); }
-.text-gold { color: var(--gold-dark); }
-
-.venue-info {
-  display: flex;
-  flex-direction: column;
-  strong { color: var(--dark); font-weight: 600; }
-  .location-sub { font-size: 0.85rem; color: var(--text); opacity: 0.8; }
-}
-
-/* Button Trigger Elements */
-.card-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.action-btn {
-  font-family: 'Inter', sans-serif;
-  flex: 1;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 10px 16px;
-  border-radius: 30px;
+/* ── Map link ── */
+.map-link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.25s ease;
-  cursor: pointer;
-}
+  gap: 6px;
+  font-size: 0.75rem;
+  font-family: 'Cormorant Garamond', serif;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--gold-dark);
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--gold-light) 50%, transparent);
+  padding: 6px 14px;
+  border-radius: 30px;
+  transition: all 0.2s ease;
 
-.map-btn {
-  background-color: var(--blush);
-  color: var(--dark);
-  border: 1px solid transparent;
+  i { font-size: 0.75rem; }
 
   &:hover {
-    background-color: transparent;
-    border-color: var(--gold);
-    color: var(--gold-dark);
+    background-color: var(--gold-light);
+    color: var(--dark);
+    border-color: var(--gold-light);
   }
 }
 
-/* Responsive Structural Refactors for Mobile Screens */
-@media (max-width: 768px) {
-  .events-timeline {
-    &::before { left: 20px; }
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  .event-row {
+    grid-template-columns: 52px 22px 1fr;
+    gap: 0 8px;
   }
 
-  .event-card-wrapper {
-    width: 100%;
-    padding-left: 55px !important;
-    padding-right: 0 !important;
-    justify-content: flex-start !important;
-
-    &.right-aligned { left: 0; }
-    
-    .date-badge {
-      left: -5px !important;
-      right: auto !important;
-    }
+  .date-day {
+    font-size: 1.2rem;
   }
 
   .event-card {
-    max-width: 100%;
+    padding: 14px 14px 12px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
   }
 }
 </style>

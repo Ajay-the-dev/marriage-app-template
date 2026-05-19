@@ -14,7 +14,7 @@
                 </div>
             </div>
 
-            <!-- Masonry/Flex Photo Grid -->
+            <!-- Staggered 2-Column Photo Grid -->
             <div class="gallery-grid">
                 <div 
                 v-for="(image, index) in galleryImages" 
@@ -64,23 +64,13 @@
         </section>
     </Basic>
 </template>
+
 <script setup>
 import Basic from "@/views/Basic.vue";
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { gsap } from 'gsap'
 
-// Add your path coordinates here pointing inside your public/images folder
-// const galleryImages = ref([
-//   { src: '/images/gallery-1.jpg', alt: 'Pre-wedding photoshoot 1' },
-//   { src: '/images/gallery-2.jpg', alt: 'Pre-wedding photoshoot 2' },
-//   { src: '/images/gallery-3.jpg', alt: 'Pre-wedding photoshoot 3' },
-//   { src: '/images/gallery-4.jpg', alt: 'Pre-wedding photoshoot 4' },
-//   { src: '/images/gallery-5.jpg', alt: 'Pre-wedding photoshoot 5' },
-//   { src: '/images/gallery-6.jpg', alt: 'Pre-wedding photoshoot 6' },
-// ])
-
 const galleryImages = computed(() => {
-  // This allows you to easily switch to a different set of images in the future
   var result = []
   for (let index = 1; index <= 19; index++) {
     result.push({ src: `/images/${index}.jpeg`, alt: `Gallery image ${index}` })
@@ -93,46 +83,35 @@ const currentIdx = ref(0)
 const lightboxRef = ref(null)
 const activeImgRef = ref(null)
 
-// 1. Initial page load grid animation
 onMounted(() => {
   gsap.from('.gallery-item', {
     opacity: 0,
     y: 40,
     scale: 0.9,
     duration: 0.8,
-    stagger: 0.15, // Smooth staggering sequential load 
+    stagger: 0.1,
     ease: 'power2.out'
   })
 })
 
-// 2. Open Lightbox Animation Sequence
 const openLightbox = async (index) => {
   currentIdx.value = index
   isLightboxOpen.value = true
-  
-  // Wait for Vue to render the overlay DOM nodes
   await nextTick()
-  
-  // Custom Timeline for immersive entry reveal
   const tl = gsap.timeline()
   tl.to(lightboxRef.value, { opacity: 1, duration: 0.3 })
     .from(activeImgRef.value, { scale: 0.8, opacity: 0, duration: 0.4, ease: 'back.out(1.2)' }, '-=0.1')
 }
 
-// 3. Close Lightbox Animation Sequence
 const closeLightbox = () => {
   if (!lightboxRef.value) return
-  
   gsap.to(lightboxRef.value, {
     opacity: 0,
     duration: 0.3,
-    onComplete: () => {
-      isLightboxOpen.value = false
-    }
+    onComplete: () => { isLightboxOpen.value = false }
   })
 }
 
-// 4. Slide Transition Controls between Images
 const nextImage = () => {
   gsap.to(activeImgRef.value, {
     opacity: 0, x: -30, duration: 0.2, onComplete: () => {
@@ -151,6 +130,7 @@ const prevImage = () => {
   })
 }
 </script>
+
 <style lang="scss" scoped>
 .gallery-section {
   background-color: var(--cream);
@@ -181,21 +161,32 @@ const prevImage = () => {
   .divider-icon { margin: 0 15px; color: var(--gold); font-size: 0.8rem; }
 }
 
-/* Photo Matrix Layout grid */
+/* Staggered 2-Column Grid */
 .gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   margin-top: 40px;
+  align-items: start; /* Columns flow independently — essential for stagger */
+}
+
+/* Push every even item (right column) down to create staggered depth */
+.gallery-item:nth-child(even) {
+  margin-top: 60px;
 }
 
 .gallery-item {
   border-radius: 16px;
   overflow: hidden;
-  aspect-ratio: 4 / 5; /* Dynamic luxury portrait scale */
+  aspect-ratio: 4 / 5;
   cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--gold-light) 30%, transparent);
   box-shadow: 0 8px 20px rgba(61, 44, 20, 0.04);
+  transition: box-shadow 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 16px 40px rgba(61, 44, 20, 0.12);
+  }
 }
 
 .image-inner-wrapper {
@@ -204,7 +195,6 @@ const prevImage = () => {
   height: 100%;
   overflow: hidden;
 
-  /* Prevent stretching via object-fit cover rule */
   .gallery-img {
     width: 100%;
     height: 100%;
@@ -213,14 +203,14 @@ const prevImage = () => {
   }
 }
 
-/* Luxury Interactive Overlay Hover States */
+/* Hover Overlay */
 .hover-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(26, 18, 8, 0.4); /* Fills with dark variable shade */
+  background: rgba(26, 18, 8, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -240,16 +230,16 @@ const prevImage = () => {
   .hover-overlay { opacity: 1; .zoom-icon { transform: scale(1); } }
 }
 
-/* Lightbox Layout Wrapper CSS */
+/* Lightbox */
 .lightbox-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(26, 18, 8, 0.95); /* Deep luxurious layout blackout background */
+  background-color: rgba(26, 18, 8, 0.95);
   z-index: 10000;
-  opacity: 0; /* Animated cleanly by GSAP */
+  opacity: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -271,7 +261,6 @@ const prevImage = () => {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
-/* Control Element Buttons */
 .close-btn {
   position: absolute;
   top: 30px;
@@ -310,9 +299,19 @@ const prevImage = () => {
 .prev-btn { left: 40px; }
 .next-btn { right: 40px; }
 
-/* Mobile viewport layout optimizations */
-@media(max-width: 768px) {
+/* Mobile */
+@media (max-width: 768px) {
   .main-title { font-size: 2.2rem; }
+
+  .gallery-grid {
+    gap: 12px;
+  }
+
+  /* Remove offset on mobile — images too narrow to stagger */
+  .gallery-item:nth-child(even) {
+    margin-top: 0;
+  }
+
   .nav-btn {
     width: 45px;
     height: 45px;

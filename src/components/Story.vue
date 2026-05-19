@@ -1,8 +1,8 @@
 <template>
   <Basic>
-    <section class="events-section p-2">
+    <section class="events-section">
       <div class="container py-5">
-        
+
         <!-- Section Header Optimized for Love Story -->
         <div class="text-center mb-5 header-block">
           <span class="sub-title">How We Got Here</span>
@@ -14,42 +14,45 @@
           </div>
         </div>
 
-        <!-- Timeline Matrix -->
-        <div class="events-timeline">
-          <div 
-            v-for="(event, index) in relationshipTimeline" 
-            :key="index" 
-            class="event-card-wrapper"
-            :class="index % 2 === 0 ? 'left-aligned' : 'right-aligned'"
+        <!-- Relationship Timeline Stack -->
+        <div class="events-list mb-5">
+          <div
+            v-for="(event, index) in relationshipTimeline"
+            :key="index"
+            class="event-row"
           >
-            <!-- Elegant Floating Date Badge (Shows Day & Month) -->
-            <div class="date-badge">
-              <span class="day">{{ event.day }}</span>
-              <span class="month">{{ event.month }}</span>
+            <!-- Left: Sequential Counter + Date -->
+            <div class="event-meta">
+              <span class="event-num">0{{ index + 1 }}</span>
+              <div class="event-date">
+                <span class="date-day">{{ event.day }}</span>
+                <span class="date-month">{{ event.month }}</span>
+              </div>
             </div>
 
-            <!-- Main Milestone Display Card -->
+            <!-- Central Asymmetric Connector -->
+            <div class="connector">
+              <div class="dot"></div>
+              <div class="thread" v-if="index < relationshipTimeline.length - 1"></div>
+            </div>
+
+            <!-- Right: Milestone Details Card -->
             <div class="event-card">
-              <div class="card-accent"></div>
-              
-              <h3 class="event-title">{{ event.name }}</h3>
-              
-              <div class="event-details">
-                <!-- Year Frame Marker -->
-                <div class="detail-item">
-                  <i class="fa-regular fa-calendar-check detail-icon text-sage"></i>
+              <h3 class="event-name">{{ event.name }}</h3>
+
+              <div class="event-info">
+                <!-- Year Frame Block -->
+                <div class="info-row">
+                  <i class="fa-regular fa-calendar-check text-sage"></i>
                   <span><strong>Year:</strong> {{ event.year }}</span>
                 </div>
                 
-                <!-- Custom Sub-description block (Optional notes can go here) -->
-                <div class="detail-item mt-2">
-                  <i class="fa-solid fa-star detail-icon text-gold"></i>
-                  <div class="venue-info">
-                    <span class="location-sub">{{ event.note }}</span>
-                  </div>
+                <!-- Description Note Block -->
+                <div class="info-row align-items-start mt-1">
+                  <i class="fa-solid fa-star text-gold"></i>
+                  <p class="story-note">{{ event.note }}</p>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -63,7 +66,6 @@
 import { ref } from "vue";
 import Basic from "@/views/Basic.vue";
 
-// Renamed and filled with your custom love story milestones
 const relationshipTimeline = ref([
   {
     name: 'First Meet',
@@ -95,7 +97,7 @@ const relationshipTimeline = ref([
   },
   {
     name: 'Official Pennukanal',
-    day: '3', // Handled elegantly since no specific day was given
+    day: '03',
     month: 'Sept',
     year: '2025',
     note: 'Sealing the beautiful traditional custom with blessings.'
@@ -104,207 +106,220 @@ const relationshipTimeline = ref([
 </script>
 
 <style lang="scss" scoped>
-/* Base Setup & Containers */
 .events-section {
   background-color: var(--cream);
   color: var(--text);
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', serif;
   min-height: 100vh;
-  position: relative;
-  overflow: hidden;
 }
 
-/* Typography Header Layout */
+/* ── Header ── */
 .sub-title {
-  font-size: 0.9rem;
+  display: block;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 3px;
   color: var(--sage);
   font-weight: 600;
+  font-family: 'Cormorant Garamond', serif;
 }
 
 .main-title {
   color: var(--dark);
-  font-size: 2.8rem;
-  margin-top: 8px;
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  margin-top: 6px;
+  font-family: 'Cinzel Decorative', cursive;
+  font-weight: 400;
 }
 
 .luxury-divider {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 15px;
-  
+  margin-top: 14px;
+
   .line {
     height: 1px;
-    width: 60px;
+    width: 50px;
     background-color: var(--gold-light);
   }
   .divider-icon {
-    margin: 0 15px;
+    margin: 0 12px;
     color: var(--gold);
-    font-size: 0.8rem;
+    font-size: 0.7rem;
   }
 }
 
-/* Timeline Layout */
-.events-timeline {
-  position: relative;
-  max-width: 850px;
-  margin: 50px auto 0 auto;
-  padding: 20px 0;
+/* ── Events List Layout ── */
+.events-list {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 10px 0 40px;
+}
 
-  /* Central connecting thread line */
+.event-row {
+  display: grid;
+  grid-template-columns: 64px 28px 1fr;
+  gap: 0 12px;
+  align-items: start;
+  margin-bottom: 0;
+}
+
+/* ── Left Metadata Column ── */
+.event-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-top: 14px;
+  gap: 4px;
+}
+
+.event-num {
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  color: var(--gold-light);
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.event-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.date-day {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--dark);
+  line-height: 1;
+  font-family: 'Cinzel Decorative', cursive;
+}
+
+.date-month {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--gold-dark);
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+}
+
+/* ── Center Connector Line ── */
+.connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--gold);
+  border: 2px solid var(--cream);
+  box-shadow: 0 0 0 1px var(--gold-light);
+  flex-shrink: 0;
+}
+
+.thread {
+  width: 1px;
+  flex: 1;
+  min-height: 70px;
+  background: linear-gradient(to bottom, var(--gold-light), transparent);
+  margin-top: 6px;
+}
+
+/* ── Milestone Card ── */
+.event-card {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--gold-light) 35%, transparent);
+  border-radius: 16px;
+  padding: 18px 20px 16px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 18px rgba(61, 44, 20, 0.05);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  position: relative;
+  overflow: hidden;
+
+  /* Top brand gradient accent line */
   &::before {
     content: '';
     position: absolute;
     top: 0;
-    bottom: 0;
-    left: 50%;
-    width: 1px;
-    background-color: var(--gold-light);
-    transform: translateX(-50%);
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold-light), transparent);
+    border-radius: 0 0 4px 4px;
   }
-}
-
-/* Structural Layout for Individual Alternating Blocks */
-.event-card-wrapper {
-  position: relative;
-  width: 50%;
-  margin-bottom: 60px;
-  display: flex;
-  box-sizing: border-box;
-
-  &.left-aligned {
-    left: 0;
-    padding-right: 50px;
-    justify-content: flex-end;
-    .date-badge { right: -24px; }
-  }
-
-  &.right-aligned {
-    left: 50%;
-    padding-left: 50px;
-    justify-content: flex-start;
-    .date-badge { left: -24px; }
-  }
-}
-
-/* Date Badge Capsule */
-.date-badge {
-  position: absolute;
-  top: 30px;
-  width: 50px;
-  height: 50px;
-  background-color: var(--blush);
-  border: 1px solid var(--gold);
-  border-radius: 50%;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-
-  .day {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--dark);
-    line-height: 1;
-  }
-  .month {
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    color: var(--gold-dark);
-    letter-spacing: 0.5px;
-    font-weight: 600;
-  }
-}
-
-/* Event Luxury Card styling */
-.event-card {
-  background-color: #ffffff;
-  border: 1px solid color-mix(in srgb, var(--gold-light) 40%, transparent);
-  border-radius: 20px;
-  padding: 30px;
-  width: 100%;
-  max-width: 360px;
-  position: relative;
-  box-shadow: 0 10px 25px rgba(61, 44, 20, 0.04);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 
   &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 15px 35px rgba(154, 122, 69, 0.12);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(154, 122, 69, 0.1);
   }
 }
 
-.card-accent {
-  position: absolute;
-  top: 0;
-  left: 30px;
-  right: 30px;
-  height: 3px;
-  background: linear-gradient(90deg, var(--gold-light), var(--gold-dark));
-  border-radius: 0 0 4px 4px;
-}
-
-.event-title {
+.event-name {
+  font-family: 'Cinzel Decorative', cursive;
+  font-size: clamp(0.95rem, 3vw, 1.15rem);
+  font-weight: 400;
   color: var(--dark);
-  font-size: 1.6rem;
-  margin-bottom: 20px;
+  margin: 0 0 12px;
 }
 
-/* Inner Details Frame */
-.event-details {
-  font-family: 'Inter', sans-serif;
-}
-
-.detail-item {
+.event-info {
   display: flex;
-  align-items: flex-start;
-  font-size: 0.95rem;
-  color: var(--text);
+  flex-direction: column;
+  gap: 8px;
+}
 
-  .detail-icon {
-    width: 20px;
-    margin-top: 3px;
-    font-size: 1rem;
-    margin-right: 12px;
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(0.82rem, 2.5vw, 0.92rem);
+  color: var(--text);
+  line-height: 1.4;
+  font-family: 'Cormorant Garamond', serif;
+
+  i {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
   }
 }
 
 .text-sage { color: var(--sage); }
 .text-gold { color: var(--gold-dark); }
 
-.venue-info {
-  display: flex;
-  flex-direction: column;
-  .location-sub { font-size: 0.9rem; font-style: italic; color: var(--text); opacity: 0.85; }
+.story-note {
+  margin: 0;
+  font-style: italic;
+  opacity: 0.85;
 }
 
-/* Responsive Structural Refactors for Mobile Screens */
-@media (max-width: 768px) {
-  .events-timeline {
-    &::before { left: 20px; }
+/* ── Mobile Optimization ── */
+@media (max-width: 480px) {
+  .event-row {
+    grid-template-columns: 52px 22px 1fr;
+    gap: 0 8px;
   }
 
-  .event-card-wrapper {
-    width: 100%;
-    padding-left: 55px !important;
-    padding-right: 0 !important;
-    justify-content: flex-start !important;
-
-    &.right-aligned { left: 0; }
-    
-    .date-badge {
-      left: -5px !important;
-      right: auto !important;
-    }
+  .date-day {
+    font-size: 1.2rem;
   }
 
   .event-card {
-    max-width: 100%;
+    padding: 14px 16px 14px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
   }
 }
 </style>

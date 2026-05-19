@@ -21,6 +21,7 @@ import floatingMenu from "@/components/bottomMenu.vue";
   position: absolute;
   top: 0;
   left: 0;
+  overflow: hidden;
 }
 
 .push-back{

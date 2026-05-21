@@ -72,7 +72,7 @@ import { gsap } from 'gsap'
 
 const galleryImages = computed(() => {
   var result = []
-  for (let index = 1; index <= 19; index++) {
+  for (let index = 1; index <= 13; index++) {
     result.push({ src: `/images/${index}.jpeg`, alt: `Gallery image ${index}` })
   }
   return result
@@ -151,6 +151,7 @@ const prevImage = () => {
   color: var(--dark);
   font-size: 2.8rem;
   margin-top: 8px;
+  font-family: 'Cormorant Garamond', serif;
 }
 .luxury-divider {
   display: flex;

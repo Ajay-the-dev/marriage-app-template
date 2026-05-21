@@ -1,7 +1,7 @@
 <template>
     <Basic>
         <div class="hero-wrapper"> 
-            <div class="brown-bg full-screen d-flex flex-column justify-content-center align-items-center" ref="heroContent">
+            <div class="brown-bg full-screen d-flex flex-column align-items-center" ref="heroContent" style="padding-top: 20vh;">
                 <span class="fs-5 fst-italic mb-2">You are invited to the wedding ceremony of</span>
                 <h1 class="fw-bold">Mithun</h1>
                 <h1>&</h1>
@@ -74,13 +74,13 @@ onMounted(() => {
     color: var(--gold);
     opacity: 1;
     font-family: 'Cinzel Decorative', cursive;
-    font-size: 38pt;
+    font-size: 22pt;
 }
 
 .hero-divider {
 width: 120px; height: 1px;
 background: linear-gradient(90deg, transparent, var(--gold), transparent);
-margin: 1.5rem auto;
+margin: 0.5rem auto;
 opacity: 1;
 }
 
@@ -89,7 +89,7 @@ opacity: 1;
     font-size: clamp(1.25rem, 2.5vw, 1.5rem);
     color: var(--gold-light);
     letter-spacing: 0.2em;
-    margin-top: 1.5rem;
+    margin-top: 0.5rem;
     opacity: 1;
 }
 
@@ -98,7 +98,7 @@ opacity: 1;
     font-size: clamp(0.875rem, 2.5vw, 1.5rem);
     color: var(--gold-light);
     letter-spacing: 0.2em;
-    margin-top: 1.5rem;
+    margin-top: 0.5rem;
     opacity: 1;
 }
 
@@ -107,7 +107,7 @@ opacity: 1;
     font-size: clamp(0.875rem, 2.5vw, 1.5rem);
     color: var(--gold-light);
     letter-spacing: 0.2em;
-    margin-top: 1.5rem;
+    margin-top: 0.5rem;
     opacity: 1;
 }
 

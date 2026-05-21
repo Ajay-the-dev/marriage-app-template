@@ -1,12 +1,13 @@
 <script setup>
 // import HelloWorld from './components/HelloWorld.vue'
 import floatingMenu from "@/components/bottomMenu.vue";
-
+import bytespeaks from "./components/bytespeaks.vue";
 </script>
 
 <template>
   <floatingMenu />
   <RouterView />
+  <bytespeaks />
 </template>
 <style>
 .full-screen {

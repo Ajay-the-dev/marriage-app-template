@@ -15,25 +15,23 @@
         </div>
 
         <!-- Couple Cards Container -->
-        <div class="row justify-content-center align-items-stretch g-4 couple-container ">
+        <div class="row justify-content-center align-items-stretch g-4 couple-container">
           
           <!-- Groom Column -->
           <div class="col-md-5 col-lg-4">
             <div class="couple-card groom-card">
               <div class="image-frame">
-                <!-- Replace with actual groom image path -->
                 <img src="/images/groom.jpeg" alt="The Groom" class="couple-img" />
                 <span class="role-badge">The Groom</span>
               </div>
               
               <div class="profile-details text-center mt-4">
                 <h3 class="partner-name">Mithun</h3>
-                <span class="parent-names">Son of Mr.Mohanan A & Mrs. Vijaya S</span>
+                <span class="parent-names">Son of Mr. Mohanan A & Mrs. Vijaya S</span>
                 <p class="partner-bio mt-3">
-                  A brief, heartwarming sentence about the groom. His personality, passions, or a sweet note about his excitement for the big day.
+                  A man of profound dedication who pours his heart into everything he touches, he speaks his love through loyal actions and is absolutely radiant with excitement for the beautiful future you are building together.
                 </p>
                 
-                <!-- Social Connect handles -->
                 <div class="social-links mt-4">
                   <a href="https://www.instagram.com/mithun_m_o_h_a_n?igsh=aWx0bGdmaDd1dm84&utm_source=qr" target="_blank" class="social-icon">
                     <i class="fa-brands fa-instagram"></i>
@@ -46,7 +44,7 @@
             </div>
           </div>
 
-          <!-- Decorative Golden Ampersand Divider (Hidden on mobile) -->
+          <!-- Decorative Ampersand -->
           <div class="col-md-1 d-none d-md-flex align-items-center justify-content-center ampersand-divider">
             <span>&</span>
           </div>
@@ -55,25 +53,20 @@
           <div class="col-md-5 col-lg-4">
             <div class="couple-card bride-card">
               <div class="image-frame">
-                <!-- Replace with actual bride image path -->
                 <img src="/images/bride.jpeg" alt="The Bride" class="couple-img" />
                 <span class="role-badge">The Bride</span>
               </div>
               
               <div class="profile-details text-center mt-4">
                 <h3 class="partner-name">Aiswarya Shaji</h3>
-                <span class="parent-names">Daughter of Mr. Shaji Joseph & Mrs.  Mini shaji</span>
+                <span class="parent-names">Daughter of Mr. Shaji Joseph & Mrs. Mini Shaji</span>
                 <p class="partner-bio mt-3">
-                  A brief, heartwarming sentence about the bride. Her passions, a reflection on this beautiful journey, or a tiny note about her partner.
+                  A deeply thoughtful and gentle soul who brings immense comfort to those around her, she is a steady anchor, an incredible listener, and the greatest blessing you could ever ask to walk beside in this life.
                 </p>
                 
-                <!-- Social Connect handles -->
                 <div class="social-links mt-4">
                   <a href="https://www.instagram.com/aiswarya__shaji?igsh=bGw0cWRseXV2NHRk" target="_blank" class="social-icon">
                     <i class="fa-brands fa-instagram"></i>
-                  </a>
-                  <a href="https://wa.me/919544910548" target="_blank" class="social-icon">
-                    <i class="fa-brands fa-whatsapp"></i>
                   </a>
                 </div>
               </div>
@@ -95,23 +88,26 @@ import Basic from "@/views/Basic.vue";
 .couple-section {
   background-color: var(--cream);
   color: var(--text);
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', serif;
   min-height: 100vh;
 }
 
-/* Typography Header Layout */
+/* ── Header ── */
 .sub-title {
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 3px;
   color: var(--sage);
   font-weight: 600;
+  font-family: 'Cormorant Garamond', serif;
 }
 
 .main-title {
   color: var(--dark);
-  font-size: 2.8rem;
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
   margin-top: 8px;
+  font-family: 'Cinzel Decorative', cursive;
+  font-weight: 400;
 }
 
 .luxury-divider {
@@ -132,7 +128,7 @@ import Basic from "@/views/Basic.vue";
   }
 }
 
-/* Profiles Layout & Structure */
+/* ── Layout ── */
 .couple-container {
   margin-top: 30px;
   margin-bottom: 4rem;
@@ -155,7 +151,7 @@ import Basic from "@/views/Basic.vue";
   }
 }
 
-/* Luxury Portrait Frame Layout */
+/* ── Portrait frame ── */
 .image-frame {
   position: relative;
   width: 100%;
@@ -170,57 +166,62 @@ import Basic from "@/views/Basic.vue";
     object-fit: cover;
     transition: transform 0.6s ease;
   }
-  
+
   &:hover .couple-img {
     transform: scale(1.05);
   }
 }
 
-/* Floating Badges */
 .role-badge {
   position: absolute;
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(253, 246, 236, 0.9); /* --cream fallback */
+  background-color: rgba(253, 246, 236, 0.9);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--gold);
   color: var(--dark);
-  font-family: 'Inter', sans-serif;
-  font-size: 0.8rem;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
   padding: 6px 16px;
   border-radius: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  white-space: nowrap;
 }
 
-/* Content Details */
+/* ── Text details ── */
 .partner-name {
-  font-size: 2rem;
+  font-family: 'Cinzel Decorative', cursive;
+  font-size: clamp(1.1rem, 3vw, 1.6rem);
+  font-weight: 400;
   color: var(--gold-dark);
   margin-bottom: 4px;
 }
 
 .parent-names {
-  font-family: 'Inter', sans-serif;
-  font-size: 0.85rem;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(0.8rem, 2vw, 0.88rem);
   color: var(--sage);
   font-weight: 500;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  text-transform: none;
 }
 
 .partner-bio {
-  font-family: 'Inter', sans-serif;
-  font-size: 0.95rem;
-  line-height: 1.6;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(0.88rem, 2vw, 0.95rem);
+  line-height: 1.7;
   color: var(--text);
   opacity: 0.9;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
-/* Social Media Interaction Buttons */
+/* ── Social icons ── */
 .social-links {
   display: flex;
   justify-content: center;
@@ -247,25 +248,19 @@ import Basic from "@/views/Basic.vue";
   }
 }
 
-/* Ornamental Desktop Center Splitting Ampersand */
+/* ── Ampersand divider ── */
 .ampersand-divider {
   font-size: 4rem;
   color: var(--gold-light);
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cinzel Decorative', cursive;
   font-style: italic;
   opacity: 0.6;
 }
 
-/* Mobile Screens Optimization handles */
+/* ── Mobile ── */
 @media (max-width: 768px) {
-  .main-title {
-    font-size: 2.2rem;
-  }
-  .partner-name {
-    font-size: 1.75rem;
-  }
-  .couple-card {
-    padding: 16px;
-  }
+  .main-title { font-size: 1.8rem; }
+  .partner-name { font-size: 1.4rem; }
+  .couple-card { padding: 16px; }
 }
 </style>

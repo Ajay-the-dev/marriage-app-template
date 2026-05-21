@@ -72,7 +72,7 @@ import { gsap } from 'gsap'
 
 const galleryImages = computed(() => {
   var result = []
-  for (let index = 1; index <= 13; index++) {
+  for (let index = 1; index <= 14; index++) {
     result.push({ src: `/images/${index}.jpeg`, alt: `Gallery image ${index}` })
   }
   return result

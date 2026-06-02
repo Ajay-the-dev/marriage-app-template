@@ -41,7 +41,7 @@
                   <h3 class="event-name">{{ event.name }}</h3>
 
                   <div class="event-info">
-                    <div class="info-row">
+                    <div class="info-row event-time">
                       <i class="fa-regular fa-clock"></i>
                       <span>{{ event.time }}</span>
                     </div>
@@ -75,7 +75,7 @@ const weddingEvents = ref([
   {
     name: 'Haldi',
     day: '11',
-    month: 'Jul',
+    month: 'July',
     time: '5:00 PM – 10:00 PM',
     venue: 'Green Nest',
     location: 'Kumbalangi'
@@ -83,7 +83,7 @@ const weddingEvents = ref([
   {
     name: 'Wedding',
     day: '12',
-    month: 'Jul',
+    month: 'July',
     time: '10:30 AM – 11:30 AM',
     venue: 'Green Nest',
     location: 'Kumbalangi'
@@ -91,7 +91,7 @@ const weddingEvents = ref([
   {
     name: 'Reception 1',
     day: '14',
-    month: 'Jul',
+    month: 'July',
     time: '11:00 AM – 3:00 PM',
     venue: 'Grand Auditorium',
     location: 'Chittur'
@@ -99,7 +99,7 @@ const weddingEvents = ref([
   {
     name: 'Reception 2',
     day: '16',
-    month: 'Jul',
+    month: 'July',
     time: '5:30 PM – 9:00 PM',
     venue: "Parish Hall, St. Mary's Church",
     location: 'Kalathoor'
@@ -347,5 +347,9 @@ const weddingEvents = ref([
     width: 8px;
     height: 8px;
   }
+}
+
+.event-time{
+  font-family: 'sans-serif', serif;
 }
 </style>

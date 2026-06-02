@@ -150,7 +150,7 @@ const handleCenterAction = () => router.push("/couple");
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999;
+  z-index: 10000;
   width: 100%;
   max-width: 420px;
   padding: 0 16px;

@@ -1,12 +1,24 @@
 <template>
     <!-- Floating Signature Badge -->
   <div class="floating-signature">
-    <a href="https://bytespeaks.com" target="_blank" rel="noopener" class="signature-link">
+    <span @click="goto()" class="signature-link">
       crafted by bytespeaks <i class="fa-solid fa-heart heart-icon"></i>
-    </a>
+    </span>
   </div>
 </template>
 <script setup>
+import { computed } from "vue";
+
+const generateSignatureLink = computed(() => {
+  const textString = "Hello, I'm interested in your services. Could you please provide more information?";
+  const baseUrl = "https://wa.me/971562948474";
+  const utmParams = `?text=${encodeURIComponent(textString)}`;
+  return `${baseUrl}${utmParams}`;
+});
+
+const goto = () => {
+  window.open(generateSignatureLink.value, "_blank");
+};
 </script>
 <style lang="scss" scoped>
 /* ── Floating Signature Badge ── */
@@ -14,8 +26,9 @@
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 10000; /* Stays on top of everything */
+  z-index: 9999; /* Stays on top of everything */
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .signature-link {

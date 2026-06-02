@@ -44,14 +44,6 @@ onMounted(() => {
         }
     );
 
-    // Floating animation for all text
-            // gsap.to(heroContent.value.children, {
-            //     y: -30,
-            //     duration: 3,
-            //     ease: "sine.inOut",
-            //     // repeat: -1,
-            //     yoyo: true,
-            // });
 });
 </script>
 <style scoped>
@@ -85,7 +77,7 @@ opacity: 1;
 }
 
 .hero-date {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: 'Sans-serif', serif;
     font-size: clamp(1.25rem, 2.5vw, 1.5rem);
     color: var(--gold-light);
     letter-spacing: 0.2em;
@@ -94,8 +86,8 @@ opacity: 1;
 }
 
 .hero-time {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: clamp(0.875rem, 2.5vw, 1.5rem);
+    font-family: 'Sans-serif', serif;
+    font-size: clamp(1rem, 2.5vw, 1.5rem);
     color: var(--gold-light);
     letter-spacing: 0.2em;
     margin-top: 0.5rem;

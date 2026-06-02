@@ -6,7 +6,7 @@
             <!-- Section Header -->
             <div class="text-center mb-5 header-block">
               <span class="sub-title">Join Our Celebrations</span>
-              <h2 class="main-title">The Wedding Itinerary</h2>
+              <h2 class="main-title">The Wedding itinerary</h2>
               <div class="luxury-divider">
                 <span class="line"></span>
                 <i class="fa-solid fa-heart divider-icon"></i>

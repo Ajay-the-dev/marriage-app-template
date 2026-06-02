@@ -95,7 +95,7 @@ opacity: 1;
 }
 
 .hero-location {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: 'Sans-serif', serif;
     font-size: clamp(0.875rem, 2.5vw, 1.5rem);
     color: var(--gold-light);
     letter-spacing: 0.2em;

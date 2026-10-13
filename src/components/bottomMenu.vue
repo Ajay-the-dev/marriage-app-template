@@ -5,26 +5,14 @@
       <!-- Left Section: Branding + New Credit Tagline -->
       <div class="nav-branding-wrapper">
         <div class="nav-branding" @click="handleCenterAction">
-          <span class="branding-text">M&A</span>
+          <span class="branding-text">{{ monogram }}</span>
         </div>
         <span class="navbar-credit" v-if="false">with love from bytespeaks.com</span>
       </div>
 
       <nav class="nav-links">
-        <router-link to="/" class="desktop-nav-item" active-class="active">
-          <i class="fa-solid fa-house nav-mini-icon"></i> Home
-        </router-link>
-        <router-link to="/events" class="desktop-nav-item" active-class="active">
-          <i class="fa-solid fa-calendar-check nav-mini-icon"></i> Events
-        </router-link>
-        <router-link to="/couple" class="desktop-nav-item" active-class="active">
-          <i class="fa-solid fa-user-friends nav-mini-icon"></i> The Couple
-        </router-link>
-        <router-link to="/moments" class="desktop-nav-item" active-class="active">
-          <i class="fa-solid fa-images nav-mini-icon"></i> Moments
-        </router-link>
-        <router-link to="/story" class="desktop-nav-item" active-class="active">
-          <i class="fa-solid fa-heart nav-mini-icon"></i> The Story
+        <router-link v-for="item in desktopItems" :key="item.to" :to="item.to" class="desktop-nav-item" active-class="active">
+          <i class="fa-solid nav-mini-icon" :class="item.icon"></i> {{ item.label }}
         </router-link>
       </nav>
     </div>
@@ -33,39 +21,48 @@
   <!-- Mobile Floating Menu (Unchanged) -->
   <nav class="floating-menu-container d-md-none">
     <div class="floating-menu">
-      <router-link to="/" class="menu-item" active-class="active">
-        <i class="fa-solid fa-house menu-icon"></i>
-        <span class="menu-label">Home</span>
-      </router-link>
+      <template v-for="(item, index) in mobileItems" :key="item.to">
+        <button v-if="index === 2" @click="handleCenterAction" class="menu-item center-action-btn">
+          <div class="action-circle">
+            <span class="action-button-text">{{ monogram }}</span>
+          </div>
+        </button>
 
-      <router-link to="/events" class="menu-item" active-class="active">
-        <i class="fa-calendar-check fa-solid menu-icon"></i>
-        <span class="menu-label">Events</span>
-      </router-link>
-
-      <button @click="handleCenterAction" class="menu-item center-action-btn">
-        <div class="action-circle">
-          <span class="action-button-text">M&A</span>
-        </div>
-      </button>
-
-      <router-link to="/moments" class="menu-item" active-class="active">
-        <i class="fa-solid fa-images menu-icon"></i>
-        <span class="menu-label">Moments</span>
-      </router-link>
-
-      <router-link to="/story" class="menu-item" active-class="active">
-        <i class="fa-solid fa-heart menu-icon"></i>
-        <span class="menu-label">Story</span>
-      </router-link>
+        <router-link :to="item.to" class="menu-item" active-class="active">
+          <i class="fa-solid menu-icon" :class="item.icon"></i>
+          <span class="menu-label">{{ item.shortLabel }}</span>
+        </router-link>
+      </template>
     </div>
   </nav>
 </template>
 
 <script setup>
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import { computed } from "vue";
+import { useWeddingStore } from "@/stores/wedding";
+
 const router = useRouter();
-const handleCenterAction = () => router.push("/couple");
+const route = useRoute();
+// Keep guests inside a shared invitation (/<code>/events, …)
+const base = computed(() => (route.params.code ? `/${route.params.code}` : ""));
+const wedding = useWeddingStore();
+const monogram = computed(() => wedding.site.monogram);
+
+const desktopItems = computed(() => {
+  const nav = wedding.navigation;
+  return [
+    { to: base.value || "/", ...nav.home },
+    { to: `${base.value}/events`, ...nav.events },
+    { to: `${base.value}/couple`, ...nav.couple },
+    { to: `${base.value}/moments`, ...nav.moments },
+    { to: `${base.value}/story`, ...nav.story },
+  ];
+});
+// The couple page is reached via the centre monogram button on mobile
+const mobileItems = computed(() => desktopItems.value.filter((item) => !item.to.endsWith("/couple")));
+
+const handleCenterAction = () => router.push(`${base.value}/couple`);
 </script>
 
 <style lang="scss" scoped>
@@ -75,12 +72,12 @@ const handleCenterAction = () => router.push("/couple");
   top: 0;
   left: 0;
   width: 100%;
-  background: rgba(253, 246, 236, 0.92);
+  background: color-mix(in srgb, var(--cream) 92%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid color-mix(in srgb, var(--gold-light) 50%, transparent);
   z-index: 9999;
-  box-shadow: 0 4px 20px rgba(26, 18, 8, 0.04);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--shadow) 4%, transparent);
 }
 
 .desktop-navbar {
@@ -94,7 +91,7 @@ const handleCenterAction = () => router.push("/couple");
 
 .nav-branding {
   cursor: pointer;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--gold-dark);
@@ -110,7 +107,7 @@ const handleCenterAction = () => router.push("/couple");
 
 .desktop-nav-item {
   text-decoration: none;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 1.5px;
@@ -146,8 +143,9 @@ const handleCenterAction = () => router.push("/couple");
 
 /* ── Mobile floating menu ── */
 .floating-menu-container {
-  position: absolute;
-  bottom: 20px;
+  position: fixed;
+  bottom: calc(5vh + env(safe-area-inset-bottom, 0px));
+  bottom: calc(5dvh + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10000;
@@ -161,13 +159,13 @@ const handleCenterAction = () => router.push("/couple");
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(253, 246, 236, 0.93);
+  background: color-mix(in srgb, var(--cream) 93%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid color-mix(in srgb, var(--gold-light) 60%, transparent);
   padding: 8px 12px;
   border-radius: 30px;
-  box-shadow: 0 8px 32px rgba(26, 18, 8, 0.12);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--shadow) 12%, transparent);
 }
 
 .menu-item {
@@ -193,7 +191,7 @@ const handleCenterAction = () => router.push("/couple");
   }
 
   .menu-label {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: var(--font-serif);
     font-size: 0.62rem;
     font-weight: 600;
     letter-spacing: 1px;
@@ -227,21 +225,21 @@ const handleCenterAction = () => router.push("/couple");
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 16px rgba(154, 122, 69, 0.35);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--gold-dark) 35%, transparent);
     transition: all 0.25s ease;
   }
 
   &:hover .action-circle {
     transform: scale(1.08) translateY(-3px);
-    box-shadow: 0 8px 20px rgba(154, 122, 69, 0.5);
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--gold-dark) 50%, transparent);
   }
 }
 
 .action-button-text {
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--dark);
+  color: var(--on-accent);
 }
 
 .nav-branding-wrapper {
@@ -251,7 +249,7 @@ const handleCenterAction = () => router.push("/couple");
 }
 
 .navbar-credit {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-size: 0.8rem;
   font-style: italic;
   color: var(--text);

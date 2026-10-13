@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // weddings/{uid}: one invitation per user
+    match /weddings/{uid} {
+      // Guests can open a single invitation by id, but can't list them all
+      allow get: if true;
+
+      allow create, update: if signedInAs(uid)
+        && request.resource.data.keys().hasOnly(['ownerId', 'code', 'config', 'updatedAt'])
+        && request.resource.data.ownerId == uid
+        && request.resource.data.config is map
+        // The code must be reserved for this user in codes/{code}
+        && getAfter(/databases/$(database)/documents/codes/$(request.resource.data.code)).data.uid == uid
+        // and can never change once set
+        && (resource == null
+            || resource.data.get('code', null) == null
+            || resource.data.code == request.resource.data.code);
+
+      allow delete: if signedInAs(uid);
+    }
+
+    // codes/{code}: reserves each 12-character code for exactly one user
+    match /codes/{code} {
+      allow get: if true;
+      allow create: if signedInAs(request.resource.data.uid)
+        && code.matches('^[A-Z0-9]{12}$')
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt']);
+      // No update/delete: a code stays with its owner forever
+    }
+  }
+}

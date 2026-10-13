@@ -36,16 +36,16 @@ const goto = () => {
   align-items: center;
   gap: 6px;
   text-decoration: none;
-  background: rgba(253, 246, 236, 0.75); /* Matching your warm cream background */
+  background: color-mix(in srgb, var(--cream) 75%, transparent); /* Matching your warm cream background */
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid color-mix(in srgb, var(--gold-light) 40%, transparent);
   padding: 6px 14px;
   border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(26, 18, 8, 0.06);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--shadow) 6%, transparent);
   
   // Typography
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.8px;
@@ -64,7 +64,7 @@ const goto = () => {
     opacity: 1;
     color: var(--dark);
     border-color: var(--gold-dark);
-    box-shadow: 0 6px 16px rgba(154, 122, 69, 0.15);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--gold-dark) 15%, transparent);
     transform: translateY(-2px);
 
     .heart-icon {
@@ -76,7 +76,7 @@ const goto = () => {
 /* Responsive adjustments for Mobile */
 @media (max-width: 767.98px) {
   .floating-signature {
-    bottom: 120px; /* Safely moves it right above your floating menu container */
+    bottom: calc(5dvh + 95px); /* Safely moves it right above your floating menu container */
     right: 0;
     transform: translateX(50%); /* Centers it horizontally on mobile screens */
     width: max-content;
@@ -85,7 +85,7 @@ const goto = () => {
   }
   
   .signature-link {
-    background: rgba(253, 246, 236, 0.9); /* Slightly more opaque for tiny screens */
+    background: color-mix(in srgb, var(--cream) 90%, transparent); /* Slightly more opaque for tiny screens */
   }
 }
 </style>

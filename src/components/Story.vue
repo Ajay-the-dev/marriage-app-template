@@ -5,8 +5,8 @@
 
         <!-- Section Header Optimized for Love Story -->
         <div class="text-center mb-5 header-block">
-          <span class="sub-title">How We Got Here</span>
-          <h2 class="main-title">Our Sweet Journey</h2>
+          <span class="sub-title">{{ page.subTitle }}</span>
+          <h2 class="main-title">{{ page.title }}</h2>
           <div class="luxury-divider">
             <span class="line"></span>
             <i class="fa-solid fa-heart divider-icon"></i>
@@ -23,7 +23,7 @@
           >
             <!-- Left: Sequential Counter + Date -->
             <div class="event-meta">
-              <span class="event-num">0{{ index + 1 }}</span>
+              <span class="event-num">{{ String(index + 1).padStart(2, "0") }}</span>
               <div class="event-date">
                 <span class="date-day">{{ event.day }}</span>
                 <span class="date-month">{{ event.month }}</span>
@@ -44,7 +44,7 @@
                 <!-- Year Frame Block -->
                 <div class="info-row">
                   <i class="fa-regular fa-calendar-check text-sage"></i>
-                  <span><strong>Year:</strong> {{ event.year }}</span>
+                  <span><strong>{{ page.yearLabel }}</strong> {{ event.year }}</span>
                 </div>
                 
                 <!-- Description Note Block -->
@@ -63,53 +63,20 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
 import Basic from "@/views/Basic.vue";
+import { computed } from "vue";
+import { useWeddingStore } from "@/stores/wedding";
 
-const relationshipTimeline = ref([
-  {
-    name: 'First Meet',
-    day: '17',
-    month: 'June',
-    year: '2019',
-    note: 'The beautiful day our paths crossed for the very first time.'
-  },
-  {
-    name: 'Proposal',
-    day: '15',
-    month: 'July',
-    year: '2022',
-    note: 'A magical moment written in the stars.'
-  },
-  {
-    name: 'We Said Yes',
-    day: '22',
-    month: 'July',
-    year: '2022',
-    note: 'Making promises to love each other for a lifetime.'
-  },
-  {
-    name: 'Family Meet',
-    day: '11',
-    month: 'May',
-    year: '2025',
-    note: 'Two loving families coming together as one.'
-  },
-  {
-    name: 'Official Pennukanal',
-    day: '03',
-    month: 'Sept',
-    year: '2025',
-    note: 'Sealing the beautiful traditional custom with blessings.'
-  }
-]);
+const wedding = useWeddingStore();
+const page = computed(() => wedding.storyPage);
+const relationshipTimeline = computed(() => page.value.milestones);
 </script>
 
 <style lang="scss" scoped>
 .events-section {
   background-color: var(--cream);
   color: var(--text);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   min-height: 100vh;
 }
 
@@ -121,14 +88,14 @@ const relationshipTimeline = ref([
   letter-spacing: 3px;
   color: var(--sage);
   font-weight: 600;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 }
 
 .main-title {
   color: var(--dark);
   font-size: clamp(1.6rem, 5vw, 2.4rem);
   margin-top: 6px;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-weight: 400;
 }
 
@@ -178,7 +145,7 @@ const relationshipTimeline = ref([
   font-size: 0.65rem;
   letter-spacing: 2px;
   color: var(--gold-light);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -194,7 +161,7 @@ const relationshipTimeline = ref([
   font-weight: 700;
   color: var(--dark);
   line-height: 1;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
 }
 
 .date-month {
@@ -202,7 +169,7 @@ const relationshipTimeline = ref([
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--gold-dark);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-weight: 600;
 }
 
@@ -234,12 +201,12 @@ const relationshipTimeline = ref([
 
 /* ── Milestone Card ── */
 .event-card {
-  background: #fff;
+  background: var(--card);
   border: 1px solid color-mix(in srgb, var(--gold-light) 35%, transparent);
   border-radius: 16px;
   padding: 18px 20px 16px;
   margin-bottom: 28px;
-  box-shadow: 0 4px 18px rgba(61, 44, 20, 0.05);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--shadow) 5%, transparent);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   position: relative;
   overflow: hidden;
@@ -258,12 +225,12 @@ const relationshipTimeline = ref([
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 10px 30px rgba(154, 122, 69, 0.1);
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--gold-dark) 10%, transparent);
   }
 }
 
 .event-name {
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-size: clamp(0.95rem, 3vw, 1.15rem);
   font-weight: 400;
   color: var(--dark);
@@ -283,7 +250,7 @@ const relationshipTimeline = ref([
   font-size: clamp(0.82rem, 2.5vw, 0.92rem);
   color: var(--text);
   line-height: 1.4;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 
   i {
     font-size: 0.85rem;

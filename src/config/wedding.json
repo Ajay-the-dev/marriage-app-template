@@ -1,0 +1,171 @@
+{
+  "site": {
+    "title": "Groom & Bride — Wedding Invitation",
+    "monogram": "G&B"
+  },
+  "theme": "royal-gold",
+  "groom": {
+    "name": "Groom Name",
+    "shortName": "Groom",
+    "roleLabel": "The Groom",
+    "photo": "/images/placeholder-person.svg",
+    "parents": "Son of Mr. Father's Name & Mrs. Mother's Name",
+    "bio": "A few words about the groom — what he loves, what makes him smile, and how excited he is for the journey ahead.",
+    "socials": [
+      {
+        "type": "instagram",
+        "url": ""
+      },
+      {
+        "type": "whatsapp",
+        "url": ""
+      }
+    ]
+  },
+  "bride": {
+    "name": "Bride Name",
+    "shortName": "Bride",
+    "roleLabel": "The Bride",
+    "photo": "/images/placeholder-person.svg",
+    "parents": "Daughter of Mr. Father's Name & Mrs. Mother's Name",
+    "bio": "A few words about the bride — her passions, her warmth, and the joy she brings to everyone around her.",
+    "socials": [
+      {
+        "type": "instagram",
+        "url": ""
+      },
+      {
+        "type": "whatsapp",
+        "url": ""
+      }
+    ]
+  },
+  "hero": {
+    "inviteLine": "You are invited to the wedding ceremony of",
+    "backgroundImage": "/images/placeholder-background.svg",
+    "dateText": "DD · MM · YYYY",
+    "timeText": "10 : 00 AM - 12 : 00 PM",
+    "locationText": "VENUE NAME, CITY",
+    "countdown": {
+      "enabled": true,
+      "target": "2027-06-12T10:00:00",
+      "labels": {
+        "days": "Days",
+        "hours": "Hrs",
+        "minutes": "Min",
+        "seconds": "Sec"
+      }
+    }
+  },
+  "navigation": {
+    "home": {
+      "label": "Home",
+      "shortLabel": "Home",
+      "icon": "fa-infinity"
+    },
+    "events": {
+      "label": "Events",
+      "shortLabel": "Events",
+      "icon": "fa-calendar-check"
+    },
+    "couple": {
+      "label": "The Couple",
+      "shortLabel": "Couple",
+      "icon": "fa-user-friends"
+    },
+    "moments": {
+      "label": "Moments",
+      "shortLabel": "Moments",
+      "icon": "fa-images"
+    },
+    "story": {
+      "label": "The Story",
+      "shortLabel": "Story",
+      "icon": "fa-heart"
+    }
+  },
+  "couplePage": {
+    "subTitle": "Meet the Couple",
+    "title": "Groom & Bride"
+  },
+  "eventsPage": {
+    "subTitle": "Join Our Celebrations",
+    "title": "The Wedding itinerary",
+    "mapButtonLabel": "View on Map",
+    "events": [
+      {
+        "name": "Engagement",
+        "day": "10",
+        "month": "June",
+        "time": "6:00 PM – 9:00 PM",
+        "venue": "Venue Name",
+        "location": "City",
+        "mapUrl": ""
+      },
+      {
+        "name": "Wedding",
+        "day": "12",
+        "month": "June",
+        "time": "10:00 AM – 12:00 PM",
+        "venue": "Venue Name",
+        "location": "City",
+        "mapUrl": ""
+      },
+      {
+        "name": "Reception",
+        "day": "12",
+        "month": "June",
+        "time": "6:30 PM – 10:00 PM",
+        "venue": "Venue Name",
+        "location": "City",
+        "mapUrl": ""
+      }
+    ]
+  },
+  "storyPage": {
+    "subTitle": "How We Got Here",
+    "title": "Our Sweet Journey",
+    "yearLabel": "Year:",
+    "milestones": [
+      {
+        "name": "First Meet",
+        "day": "01",
+        "month": "Jan",
+        "year": "2020",
+        "note": "The day our paths crossed for the very first time."
+      },
+      {
+        "name": "Proposal",
+        "day": "14",
+        "month": "Feb",
+        "year": "2025",
+        "note": "A magical moment written in the stars."
+      },
+      {
+        "name": "Engagement",
+        "day": "10",
+        "month": "June",
+        "year": "2027",
+        "note": "Two families coming together as one."
+      }
+    ]
+  },
+  "momentsPage": {
+    "subTitle": "Captured Moments",
+    "title": "Our Gallery",
+    "images": [
+      "/images/placeholders/gallery-1.svg",
+      "/images/placeholders/gallery-2.svg",
+      "/images/placeholders/gallery-3.svg",
+      "/images/placeholders/gallery-4.svg",
+      "/images/placeholders/gallery-5.svg",
+      "/images/placeholders/gallery-6.svg"
+    ]
+  },
+  "saveTheDate": {
+    "enabled": false,
+    "expiresAt": "2027-06-12T23:59:59",
+    "autoplayMs": 8000,
+    "images": []
+  }
+}

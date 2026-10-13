@@ -5,8 +5,8 @@
 
             <!-- Section Header -->
             <div class="text-center mb-5 header-block">
-              <span class="sub-title">Join Our Celebrations</span>
-              <h2 class="main-title">The Wedding itinerary</h2>
+              <span class="sub-title">{{ page.subTitle }}</span>
+              <h2 class="main-title">{{ page.title }}</h2>
               <div class="luxury-divider">
                 <span class="line"></span>
                 <i class="fa-solid fa-heart divider-icon"></i>
@@ -23,7 +23,7 @@
               >
                 <!-- Left: Number + date -->
                 <div class="event-meta">
-                  <span class="event-num">0{{ index + 1 }}</span>
+                  <span class="event-num">{{ String(index + 1).padStart(2, "0") }}</span>
                   <div class="event-date">
                     <span class="date-day">{{ event.day }}</span>
                     <span class="date-month">{{ event.month }}</span>
@@ -52,11 +52,11 @@
                   </div>
 
                   <a
-                    :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(event.venue + ' ' + event.location)"
+                    :href="mapLink(event)"
                     target="_blank"
                     class="map-link"
                   >
-                    <i class="fa-solid fa-map-location-dot"></i> View on Map
+                    <i class="fa-solid fa-map-location-dot"></i> {{ page.mapButtonLabel }}
                   </a>
                 </div>
               </div>
@@ -68,50 +68,23 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
 import Basic from "@/views/Basic.vue";
+import { computed } from "vue";
+import { useWeddingStore } from "@/stores/wedding";
 
-const weddingEvents = ref([
-  {
-    name: 'Haldi',
-    day: '11',
-    month: 'July',
-    time: '5:00 PM – 10:00 PM',
-    venue: 'Green Nest',
-    location: 'Kumbalangi'
-  },
-  {
-    name: 'Wedding',
-    day: '12',
-    month: 'July',
-    time: '10:30 AM – 11:30 AM',
-    venue: 'Green Nest',
-    location: 'Kumbalangi'
-  },
-  {
-    name: 'Reception 1',
-    day: '14',
-    month: 'July',
-    time: '11:00 AM – 3:00 PM',
-    venue: 'Grand Auditorium',
-    location: 'Chittur'
-  },
-  {
-    name: 'Reception 2',
-    day: '16',
-    month: 'July',
-    time: '5:30 PM – 9:00 PM',
-    venue: "Parish Hall, St. Mary's Church",
-    location: 'Kalathoor'
-  }
-]);
+const wedding = useWeddingStore();
+const page = computed(() => wedding.eventsPage);
+const weddingEvents = computed(() => page.value.events);
+
+const mapLink = (event) =>
+  event.mapUrl || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(event.venue + " " + event.location);
 </script>
 
 <style lang="scss" scoped>
 .events-section {
   background-color: var(--cream);
   color: var(--text);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   min-height: 100vh;
 }
 
@@ -123,14 +96,14 @@ const weddingEvents = ref([
   letter-spacing: 3px;
   color: var(--sage);
   font-weight: 600;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 }
 
 .main-title {
   color: var(--dark);
   font-size: clamp(1.6rem, 5vw, 2.4rem);
   margin-top: 6px;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-weight: 400;
 }
 
@@ -180,7 +153,7 @@ const weddingEvents = ref([
   font-size: 0.65rem;
   letter-spacing: 2px;
   color: var(--gold-light);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -196,7 +169,7 @@ const weddingEvents = ref([
   font-weight: 700;
   color: var(--dark);
   line-height: 1;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
 }
 
 .date-month {
@@ -204,7 +177,7 @@ const weddingEvents = ref([
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--gold-dark);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-weight: 600;
 }
 
@@ -236,12 +209,12 @@ const weddingEvents = ref([
 
 /* ── Card ── */
 .event-card {
-  background: #fff;
+  background: var(--card);
   border: 1px solid color-mix(in srgb, var(--gold-light) 35%, transparent);
   border-radius: 16px;
   padding: 16px 18px 14px;
   margin-bottom: 28px;
-  box-shadow: 0 4px 18px rgba(61, 44, 20, 0.05);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--shadow) 5%, transparent);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   position: relative;
   overflow: hidden;
@@ -260,12 +233,12 @@ const weddingEvents = ref([
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 10px 30px rgba(154, 122, 69, 0.1);
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--gold-dark) 10%, transparent);
   }
 }
 
 .event-name {
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-size: clamp(0.95rem, 3vw, 1.15rem);
   font-weight: 400;
   color: var(--dark);
@@ -286,7 +259,7 @@ const weddingEvents = ref([
   font-size: clamp(0.78rem, 2.5vw, 0.88rem);
   color: var(--text);
   line-height: 1.4;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 
   i {
     color: var(--gold-dark);
@@ -308,7 +281,7 @@ const weddingEvents = ref([
   align-items: center;
   gap: 6px;
   font-size: 0.75rem;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   letter-spacing: 1.5px;
   text-transform: uppercase;
   font-weight: 600;
@@ -323,7 +296,7 @@ const weddingEvents = ref([
 
   &:hover {
     background-color: var(--gold-light);
-    color: var(--dark);
+    color: var(--on-accent);
     border-color: var(--gold-light);
   }
 }

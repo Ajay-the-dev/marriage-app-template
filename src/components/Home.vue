@@ -2,30 +2,30 @@
     <Basic>
         <div class="hero-wrapper"> 
             <div class="brown-bg full-screen d-flex flex-column align-items-center" ref="heroContent" style="padding-top: 18vh;">
-                <span class="fs-5 fst-italic mb-2">You are invited to the wedding ceremony of</span>
-                <h1 class="fw-bold">Mithun</h1>
+                <span class="fs-5 fst-italic mb-2">{{ hero.inviteLine }}</span>
+                <h1 class="fw-bold">{{ wedding.groom.shortName }}</h1>
                 <h1>&</h1>
-                <h1 class="fw-bold">Aiswarya</h1>
+                <h1 class="fw-bold">{{ wedding.bride.shortName }}</h1>
                 <div class="hero-divider"></div>
-                <div class="hero-date">
-                    <i class="fa-calendar fa-solid mx-2"></i>12 · 07 · 2026
+                <div class="hero-date" v-if="hero.dateText">
+                    <i class="fa-calendar fa-solid mx-2"></i>{{ hero.dateText }}
                 </div>
-                 <div class="hero-time">
-                    <i class="fa-clock fa-solid mx-2"></i>10 : 30 AM - 11 : 30 AM
+                 <div class="hero-time" v-if="hero.timeText">
+                    <i class="fa-clock fa-solid mx-2"></i>{{ hero.timeText }}
                 </div>
-                <div class="hero-location">
-                    GREEN NEST KUMBALANGI, KOCHI
+                <div class="hero-location" v-if="hero.locationText">
+                    {{ hero.locationText }}
                 </div>
 
                 <!-- Countdown -->
-                <div class="hero-countdown" v-if="!marriageHappened">
+                <div class="hero-countdown" v-if="hero.countdown.enabled && !marriageHappened">
                     <div class="countdown-item" v-for="unit in countdownUnits" :key="unit.label">
                         <span class="countdown-number">{{ unit.value }}</span>
                         <span class="countdown-label">{{ unit.label }}</span>
                     </div>
                 </div>
             </div>
-            <img src="/images/main.jpeg" alt="Mithun" class="full-screen-img push-back" ref="bgImage"/>
+            <img :src="hero.backgroundImage" :alt="`${wedding.groom.shortName} & ${wedding.bride.shortName}`" class="full-screen-img push-back" ref="bgImage"/>
         </div>
     </Basic>    
 </template>
@@ -33,12 +33,15 @@
 import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import Basic from "@/views/Basic.vue";
 import gsap from "gsap";
+import { useWeddingStore } from "@/stores/wedding";
+
+const wedding = useWeddingStore();
+const hero = computed(() => wedding.hero);
 
 const bgImage = ref(null);
 const heroContent = ref(null);
 
-// Set your wedding date/time here
-const weddingDate = new Date("2026-07-12T10:30:00");
+const weddingDate = computed(() => new Date(hero.value.countdown.target));
 
 const now = ref(new Date());
 let timer = null;
@@ -46,22 +49,21 @@ let timer = null;
 const marriageHappened = ref(false);
 
 const countdownUnits = computed(() => {
-    const diff = Math.max(0, weddingDate - now.value);
+    const diff = Math.max(0, weddingDate.value - now.value);
+    const labels = hero.value.countdown.labels;
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
     const minutes = Math.floor((diff / (1000 * 60)) % 60);
     const seconds = Math.floor((diff / 1000) % 60);
 
 
-    if(diff === 0){
-        marriageHappened.value = true;
-    }
+    marriageHappened.value = diff === 0;
 
     return [
-        { label: "Days", value: String(days).padStart(2, "0") },
-        { label: "Hrs", value: String(hours).padStart(2, "0") },
-        { label: "Min", value: String(minutes).padStart(2, "0") },
-        { label: "Sec", value: String(seconds).padStart(2, "0") },
+        { label: labels.days, value: String(days).padStart(2, "0") },
+        { label: labels.hours, value: String(hours).padStart(2, "0") },
+        { label: labels.minutes, value: String(minutes).padStart(2, "0") },
+        { label: labels.seconds, value: String(seconds).padStart(2, "0") },
     ];
 });
 
@@ -85,7 +87,7 @@ onBeforeUnmount(() => {
 .brown-bg {
     position: relative;
     overflow: hidden;
-    background-color: var(--dark);
+    background-color: var(--overlay);
     opacity: 0.8;
     z-index: 1;
 }
@@ -93,13 +95,13 @@ onBeforeUnmount(() => {
 .brown-bg span {
     color: var(--gold-light);
     opacity: 1;
-    font-family: 'Cormorant Garamond', serif;
+    font-family: var(--font-serif);
 }
 
 .brown-bg h1 {
     color: var(--gold);
     opacity: 1;
-    font-family: 'Cinzel Decorative', cursive;
+    font-family: var(--font-display);
     font-size: 22pt;
 }
 
@@ -143,7 +145,7 @@ onBeforeUnmount(() => {
     gap: 1.25rem;
     margin-top: 1.25rem;
     padding-top: 0.75rem;
-    border-top: 1px solid rgba(212, 175, 55, 0.3); /* subtle gold divider */
+    border-top: 1px solid color-mix(in srgb, var(--gold) 30%, transparent); /* subtle gold divider */
 }
 
 .countdown-item {
@@ -154,7 +156,7 @@ onBeforeUnmount(() => {
 }
 
 .countdown-number {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: var(--font-serif);
     font-size: clamp(1.1rem, 3vw, 1.6rem);
     color: var(--gold);
     line-height: 1;
@@ -173,6 +175,7 @@ onBeforeUnmount(() => {
 .full-screen-img {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   object-fit: cover;
   position: absolute;
   top: 0;
@@ -184,6 +187,7 @@ onBeforeUnmount(() => {
     position: relative;
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
 }
 </style>

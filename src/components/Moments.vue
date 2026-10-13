@@ -5,8 +5,8 @@
             
             <!-- Section Header -->
             <div class="text-center mb-5 header-block">
-                <span class="sub-title">Captured Moments</span>
-                <h2 class="main-title">Our Gallery</h2>
+                <span class="sub-title">{{ page.subTitle }}</span>
+                <h2 class="main-title">{{ page.title }}</h2>
                 <div class="luxury-divider">
                 <span class="line"></span>
                 <i class="fa-solid fa-camera divider-icon"></i>
@@ -69,14 +69,13 @@
 import Basic from "@/views/Basic.vue";
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { gsap } from 'gsap'
+import { useWeddingStore } from "@/stores/wedding";
 
-const galleryImages = computed(() => {
-  var result = []
-  for (let index = 1; index <= 14 ; index++) {
-    result.push({ src: `/images/${index}.jpeg`, alt: `Gallery image ${index}` })
-  }
-  return result
-})
+const wedding = useWeddingStore()
+const page = computed(() => wedding.momentsPage)
+const galleryImages = computed(() =>
+  page.value.images.map((src, index) => ({ src, alt: `Gallery image ${index + 1}` }))
+)
 
 const isLightboxOpen = ref(false)
 const currentIdx = ref(0)
@@ -136,7 +135,7 @@ const prevImage = () => {
   background-color: var(--cream);
   min-height: 100vh;
   color: var(--text);
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-serif);
 }
 
 /* Header Text Styles */
@@ -151,7 +150,7 @@ const prevImage = () => {
   color: var(--dark);
   font-size: 2.8rem;
   margin-top: 8px;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 }
 .luxury-divider {
   display: flex;
@@ -182,11 +181,11 @@ const prevImage = () => {
   aspect-ratio: 4 / 5;
   cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--gold-light) 30%, transparent);
-  box-shadow: 0 8px 20px rgba(61, 44, 20, 0.04);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow) 4%, transparent);
   transition: box-shadow 0.3s ease;
 
   &:hover {
-    box-shadow: 0 16px 40px rgba(61, 44, 20, 0.12);
+    box-shadow: 0 16px 40px color-mix(in srgb, var(--shadow) 12%, transparent);
   }
 }
 
@@ -211,7 +210,7 @@ const prevImage = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(26, 18, 8, 0.4);
+  background: color-mix(in srgb, var(--overlay) 40%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -238,7 +237,7 @@ const prevImage = () => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(26, 18, 8, 0.95);
+  background-color: color-mix(in srgb, var(--overlay) 95%, transparent);
   z-index: 10000;
   opacity: 0;
   display: flex;
@@ -277,8 +276,8 @@ const prevImage = () => {
 
 .nav-btn {
   position: absolute;
-  background: rgba(253, 246, 236, 0.05);
-  border: 1px solid rgba(232, 213, 163, 0.2);
+  background: color-mix(in srgb, var(--cream) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-light) 20%, transparent);
   color: var(--gold-light);
   width: 55px;
   height: 55px;
@@ -291,8 +290,8 @@ const prevImage = () => {
   transition: all 0.3s;
   
   &:hover {
-    background: var(--gold-dark);
-    color: var(--dark);
+    background: var(--gold-light);
+    color: var(--on-accent);
     border-color: transparent;
   }
 }
@@ -316,7 +315,7 @@ const prevImage = () => {
   .nav-btn {
     width: 45px;
     height: 45px;
-    background: rgba(26, 18, 8, 0.6);
+    background: color-mix(in srgb, var(--overlay) 60%, transparent);
     backdrop-filter: blur(4px);
   }
   .prev-btn { left: 15px; }

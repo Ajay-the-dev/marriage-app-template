@@ -20,6 +20,7 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useWeddingStore } from '@/stores/wedding'
 
 const props = defineProps({
   visible: {
@@ -31,10 +32,12 @@ const props = defineProps({
 const showButtons = ref(true)
 const emit = defineEmits(['update:visible', 'close'])
 
-const images = Array.from({ length: 12 }, (_, index) => `/save_the_date/${index + 1}.jpeg`)
+const wedding = useWeddingStore()
+const images = computed(() => wedding.saveTheDate.images)
+const autoplayMs = wedding.saveTheDate.autoplayMs
 const currentIndex = ref(0)
 
-const currentSrc = computed(() => images[currentIndex.value])
+const currentSrc = computed(() => images.value[currentIndex.value])
 const currentAlt = computed(() => `Save the date image ${currentIndex.value + 1}`)
 // const currentCaption = computed(() => `Image ${currentIndex.value + 1} of ${images.length}`)
 
@@ -44,11 +47,11 @@ function close() {
 }
 
 function prev() {
-  currentIndex.value = (currentIndex.value + images.length - 1) % images.length
+  currentIndex.value = (currentIndex.value + images.value.length - 1) % images.value.length
 }
 
 function next() {
-  currentIndex.value = (currentIndex.value + 1) % images.length
+  currentIndex.value = (currentIndex.value + 1) % images.value.length
 }
 
 const startAutoClicking = () => {
@@ -58,13 +61,13 @@ const startAutoClicking = () => {
     setTimeout(() => {
         showButtons.value = true
     }, 500);
-  }, 8000)
+  }, autoplayMs)
 }
 
 onMounted(()=>{
     setTimeout(() => {
         startAutoClicking()
-    }, 8000);
+    }, autoplayMs);
 })
 </script>
 

@@ -34,6 +34,12 @@ const routes = [
   {
     path: '/settings',
     name: 'settings',
+    component: () => import('@/components/WeddingList.vue'),
+    meta: { requiresAuth: true, bare: true }
+  },
+  {
+    path: '/settings/:id',
+    name: 'edit-wedding',
     component: () => import('@/components/Settings.vue'),
     meta: { requiresAuth: true, bare: true }
   },

@@ -5,7 +5,7 @@
       <header class="settings-toolbar">
         <div class="toolbar-inner">
           <div class="toolbar-title">
-            <router-link to="/" class="back-link" title="Back to site">
+            <router-link :to="{ name: 'settings' }" class="back-link" title="Back to my invitations">
               <i class="fa-solid fa-arrow-left"></i>
             </router-link>
             <div>
@@ -24,16 +24,18 @@
             </div>
           </div>
           <div class="toolbar-actions">
-            <button class="btn-ghost" @click="discard" :disabled="!isDirty" title="Discard unsaved changes">
+            <button class="btn-ghost" @click="discard" :disabled="!isDirty || readOnly" title="Discard unsaved changes">
               <i class="fa-solid fa-rotate-left"></i><span>Discard</span>
             </button>
-            <button class="btn-ghost" @click="importInput.click()" title="Import a JSON file">
+            <template v-if="showImportExport">
+            <button class="btn-ghost" @click="importInput.click()" :disabled="lastSaved === null || readOnly" title="Import a JSON file">
               <i class="fa-solid fa-file-import"></i><span>Import</span>
             </button>
             <button class="btn-ghost" @click="download" title="Download as JSON">
               <i class="fa-solid fa-download"></i><span>Export</span>
             </button>
-            <button class="btn-primary" @click="save" :disabled="lastSaved === null || (!isDirty && weddingCode) || saving">
+            </template>
+            <button class="btn-primary" @click="save" :disabled="lastSaved === null || (!isDirty && weddingCode) || saving || readOnly || overList.length > 0">
               <i class="fa-solid fa-floppy-disk"></i><span>{{ saving ? 'Saving…' : 'Save' }}</span>
             </button>
             <input ref="importInput" type="file" accept="application/json,.json" hidden @change="importFile" />
@@ -60,7 +62,28 @@
         <p v-else><i class="fa-solid fa-spinner fa-spin"></i> Loading your wedding…</p>
       </div>
 
-      <div v-else class="settings-body">
+      <template v-else>
+      <!-- Plan status (outside the fieldset so Upgrade works when read-only) -->
+      <div v-if="myPlan !== null" class="plan-banners">
+        <div v-if="readOnly" class="plan-banner error">
+          <i class="fa-solid fa-lock"></i>
+          <span>This invitation is over your {{ limits.label }} plan's limit of {{ limits.invitations }} invitation{{ limits.invitations === 1 ? '' : 's' }}, so it's read-only and its guest link is off. Upgrade, or delete another invitation to unlock it.</span>
+          <button v-if="planId === 'free'" type="button" class="upgrade-link" @click="showUpgrade('invitations')">Upgrade</button>
+        </div>
+        <div v-else-if="overList.length" class="plan-banner error">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Over your {{ limits.label }} plan's limits: {{ overList.join(', ') }}. The guest link is off and you can't save until you remove the extra items, or upgrade.</span>
+          <button v-if="planId === 'free'" type="button" class="upgrade-link" @click="showUpgrade()">Upgrade</button>
+        </div>
+        <div class="plan-banner">
+          <i class="fa-solid fa-crown"></i>
+          <span>{{ limits.label }} plan · {{ weddingMeta.uploads }} / {{ limits.uploads }} image uploads used for this invitation</span>
+          <button v-if="planId === 'free'" type="button" class="upgrade-link" @click="showUpgrade(uploadsLeft <= 0 ? 'uploads' : '')">Upgrade to Plus</button>
+        </div>
+      </div>
+
+      <fieldset class="settings-body" :disabled="readOnly">
+
 
         <!-- Site -->
         <div class="card" id="site">
@@ -113,7 +136,7 @@
           <h2>{{ key === 'groom' ? 'Groom' : 'Bride' }}</h2>
           <div class="partner-layout">
             <div class="photo-column">
-              <img :src="wedding[key].photo" class="photo-preview" alt="" @click="photoInputs[key].click()" />
+              <img :src="wedding[key].photo" class="photo-preview" alt="" @click="!readOnly && photoInputs[key].click()" />
               <button class="btn-upload" @click="photoInputs[key].click()" :disabled="uploading === key">
                 <i class="fa-solid" :class="uploading === key ? 'fa-spinner fa-spin' : 'fa-camera'"></i>
                 {{ uploading === key ? 'Uploading…' : 'Upload photo' }}
@@ -138,10 +161,6 @@
               <label class="field">
                 <span>Role label</span>
                 <input v-model="wedding[key].roleLabel" />
-              </label>
-              <label class="field">
-                <span>Photo path</span>
-                <input v-model="wedding[key].photo" />
               </label>
               <label class="field span-2">
                 <span>Parents line</span>
@@ -199,15 +218,11 @@
 
           <h3>Background image</h3>
           <div class="background-picker">
-            <div class="background-preview" @click="photoInputs.background.click()">
+            <div class="background-preview" @click="!readOnly && photoInputs.background.click()">
               <img v-if="wedding.hero.backgroundImage" :src="wedding.hero.backgroundImage" alt="" />
               <span v-else>No background image</span>
             </div>
             <div class="background-fields">
-              <label class="field">
-                <span>Image path</span>
-                <input v-model="wedding.hero.backgroundImage" placeholder="/images/main.jpeg" />
-              </label>
               <button class="btn-upload" @click="photoInputs.background.click()" :disabled="uploading === 'background'">
                 <i class="fa-solid" :class="uploading === 'background' ? 'fa-spinner fa-spin' : 'fa-image'"></i>
                 {{ uploading === 'background' ? 'Uploading…' : 'Upload background' }}
@@ -242,7 +257,12 @@
         <!-- Navigation -->
         <div class="card" id="navigation">
           <h2>Navigation</h2>
-          <div class="nav-table">
+          <p v-if="!limits.editNavigation" class="plan-note">
+            <i class="fa-solid fa-crown"></i>
+            <button type="button" class="upgrade-link inline" @click="showUpgrade('editNavigation')">Upgrade to Plus</button>
+            to customise navigation labels and icons.
+          </p>
+          <fieldset class="nav-table" :disabled="!limits.editNavigation">
             <div class="nav-row nav-header">
               <span>Page</span>
               <span>Label</span>
@@ -291,7 +311,7 @@
               </div>
               </div>
             </div>
-          </div>
+          </fieldset>
         </div>
 
         <!-- Couple page -->
@@ -363,8 +383,8 @@
               </label>
             </div>
           </div>
-          <button class="btn-add" @click="wedding.eventsPage.events.push({ name: '', day: '', month: '', time: '', venue: '', location: '', mapUrl: '' })">
-            <i class="fa-solid fa-plus"></i> Add event
+          <button class="btn-add" :disabled="wedding.eventsPage.events.length >= limits.events" @click="wedding.eventsPage.events.push({ name: '', day: '', month: '', time: '', venue: '', location: '', mapUrl: '' })">
+            <i class="fa-solid fa-plus"></i> Add event ({{ wedding.eventsPage.events.length }} / {{ limits.events }})
           </button>
         </div>
 
@@ -414,8 +434,8 @@
               </label>
             </div>
           </div>
-          <button class="btn-add" @click="wedding.storyPage.milestones.push({ name: '', day: '', month: '', year: '', note: '' })">
-            <i class="fa-solid fa-plus"></i> Add milestone
+          <button class="btn-add" :disabled="wedding.storyPage.milestones.length >= limits.milestones" @click="wedding.storyPage.milestones.push({ name: '', day: '', month: '', year: '', note: '' })">
+            <i class="fa-solid fa-plus"></i> Add milestone ({{ wedding.storyPage.milestones.length }} / {{ limits.milestones }})
           </button>
         </div>
 
@@ -432,7 +452,7 @@
               <input v-model="wedding.momentsPage.title" />
             </label>
           </div>
-          <ImageList :images="wedding.momentsPage.images" placeholder="/images/1.jpeg" upload-key="gallery" />
+          <ImageList :images="wedding.momentsPage.images" :max="limits.gallery" upload-key="gallery" />
         </div>
 
         <!-- Save the date -->
@@ -453,10 +473,11 @@
                 @input="wedding.saveTheDate.autoplayMs = Math.max(1, Number($event.target.value) || 1) * 1000" />
             </label>
           </div>
-          <ImageList :images="wedding.saveTheDate.images" placeholder="/save_the_date/1.jpeg" upload-key="save-the-date" />
+          <ImageList :images="wedding.saveTheDate.images" :max="limits.saveTheDate" upload-key="save-the-date" />
         </div>
 
-      </div>
+      </fieldset>
+      </template>
 
       <!-- Theme changed toast -->
       <Transition name="toast">
@@ -479,15 +500,33 @@
 <script setup>
 import { ref, computed, h, watch, onMounted, onBeforeUnmount } from "vue";
 import Basic from "@/views/Basic.vue";
-import { useWeddingStore, weddingCode } from "@/stores/wedding";
+import { useWeddingStore, weddingCode, weddingStatus, weddingMeta } from "@/stores/wedding";
+import { recordUpload } from "@/services/weddings";
+import { useMyPlan } from "@/composables/plan";
+import { getPlan, overLimits } from "@/config/plans";
+import { showUpgrade } from "@/composables/upgrade";
 import { useAuthStore } from "@/stores/auth";
 import { uploadImage as uploadToCloudinary } from "@/services/cloudinary";
-import { useRouter } from "vue-router";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { themes, fontsUrl, getTheme } from "@/config/themes";
 
 const wedding = useWeddingStore();
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+const weddingId = route.params.id;
+
+// Import / export JSON buttons, hidden for now
+const showImportExport = false;
+
+/* ── Plan limits ── */
+const myPlan = useMyPlan();
+const planId = computed(() => myPlan.value ?? "free");
+const limits = computed(() => getPlan(planId.value));
+const overList = computed(() => overLimits(wedding.$state, limits.value));
+// Locked = over the account's invitation limit
+const readOnly = computed(() => weddingMeta.value.locked);
+const uploadsLeft = computed(() => limits.value.uploads - weddingMeta.value.uploads);
 
 const sections = [
   { id: "site", label: "Site" },
@@ -568,13 +607,13 @@ const ItemControls = (props) =>
   ]);
 ItemControls.props = ["list", "index"];
 
-// Editable list of image paths with thumbnails
+// Uploaded images with thumbnails, capped at the plan's limit
 const ImageList = (props) =>
   h("div", { class: "image-list" }, [
     ...props.images.map((src, i) =>
       h("div", { class: "image-row", key: i }, [
         h("img", { src, class: "thumb", alt: "" }),
-        h("input", { value: src, placeholder: props.placeholder, onInput: (e) => (props.images[i] = e.target.value) }),
+        h("span", { class: "image-index" }, `Image ${i + 1}`),
         h(ItemControls, { list: props.images, index: i }),
       ])
     ),
@@ -583,24 +622,23 @@ const ImageList = (props) =>
         "button",
         {
           class: "btn-upload",
-          disabled: uploading.value === props.uploadKey,
+          disabled: uploading.value === props.uploadKey || props.images.length >= props.max || uploadsLeft.value <= 0,
           onClick: (e) => e.currentTarget.parentElement.querySelector("input[type=file]").click(),
         },
         uploading.value === props.uploadKey
           ? [h("i", { class: "fa-solid fa-spinner fa-spin" }), ` Uploading ${uploadProgress.value}…`]
-          : [h("i", { class: "fa-solid fa-cloud-arrow-up" }), " Upload images"]
+          : [h("i", { class: "fa-solid fa-cloud-arrow-up" }), ` Upload images (${props.images.length} / ${props.max})`]
       ),
       h("input", {
         type: "file",
         accept: "image/jpeg,image/png,image/webp,image/gif,image/avif",
         multiple: true,
         hidden: true,
-        onChange: (e) => uploadMany(props.uploadKey, props.images, e),
+        onChange: (e) => uploadMany(props.uploadKey, props.images, props.max, e),
       }),
-      h("button", { class: "btn-add", onClick: () => props.images.push("") }, [h("i", { class: "fa-solid fa-plus" }), " Add path"]),
     ]),
   ]);
-ImageList.props = ["images", "placeholder", "uploadKey"];
+ImageList.props = ["images", "max", "uploadKey"];
 
 /* ── Save / import / export ── */
 // null until the user's wedding has loaded from Firestore
@@ -611,15 +649,22 @@ const isDirty = computed(() => lastSaved.value !== null && JSON.stringify(weddin
 const loadSaved = async () => {
   loadError.value = "";
   try {
-    await wedding.loadForUser(auth.user.uid);
+    await wedding.loadById(weddingId);
+    if (weddingStatus.value === "not-found") {
+      loadError.value = "This wedding doesn't exist or was deleted.";
+      return;
+    }
     lastSaved.value = JSON.stringify(wedding.snapshot());
   } catch (error) {
     loadError.value = `Could not load your wedding: ${error.message}`;
   }
 };
 
+// Set once the user has already agreed to drop unsaved changes
+let leaveConfirmed = false;
 const logout = async () => {
   if (isDirty.value && !confirm("You have unsaved changes. Sign out anyway?")) return;
+  leaveConfirmed = true;
   await auth.logout();
   router.replace({ name: "login" });
 };
@@ -641,7 +686,7 @@ const save = async () => {
   saving.value = true;
   try {
     const body = JSON.stringify(wedding.snapshot());
-    await wedding.saveForUser(auth.user.uid);
+    await wedding.saveById(weddingId, auth.user.uid);
     lastSaved.value = body;
     flash("Saved", "ok");
   } catch (error) {
@@ -684,14 +729,22 @@ const photoInputs = {};
 const uploading = ref("");
 
 // Uploads one file to Cloudinary and returns its URL (or null)
+// Every upload counts against the invitation's plan limit
 const uploadFile = async (key, file) => {
   if (!file.type.startsWith("image/")) {
     flash(`${file.name} is not an image`, "error");
     return null;
   }
+  if (uploadsLeft.value <= 0) {
+    flash(`You've used all ${limits.value.uploads} image uploads for this invitation`, "error");
+    return null;
+  }
 
   try {
-    return await uploadToCloudinary(file, { uid: auth.user.uid, key });
+    const url = await uploadToCloudinary(file, { uid: auth.user.uid, key });
+    await recordUpload(weddingId);
+    weddingMeta.value = { ...weddingMeta.value, uploads: weddingMeta.value.uploads + 1 };
+    return url;
   } catch (error) {
     flash(`Upload failed for ${file.name}: ${error.message}`, "error");
     return null;
@@ -713,9 +766,11 @@ const uploadImage = async (key, e) => {
 
 // Multi-image picker: uploads each file in turn and appends it to the list
 const uploadProgress = ref("");
-const uploadMany = async (key, list, e) => {
-  const files = [...e.target.files];
+const uploadMany = async (key, list, max, e) => {
+  const picked = [...e.target.files];
   e.target.value = "";
+  const files = picked.slice(0, Math.max(0, Math.min(max - list.length, uploadsLeft.value)));
+  if (files.length < picked.length) flash(`Only ${files.length} of ${picked.length} images fit within your plan's limits`, "warn");
   if (!files.length) return;
 
   uploading.value = key;
@@ -769,6 +824,8 @@ const jumpTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "
 const beforeUnload = (e) => {
   if (isDirty.value) e.preventDefault();
 };
+onBeforeRouteLeave(() =>
+  leaveConfirmed || !isDirty.value || confirm("You have unsaved changes. Leave anyway?"));
 onMounted(() => {
   loadSaved();
   window.addEventListener("beforeunload", beforeUnload);
@@ -957,6 +1014,8 @@ onBeforeUnmount(() => {
 
 /* ── Body ── */
 .settings-body {
+  border: 0;
+  min-width: 0;
   max-width: 960px;
   margin: 0 auto;
   padding: 24px 16px;
@@ -1349,6 +1408,79 @@ textarea { resize: vertical; line-height: 1.5; }
   &:hover:not(:disabled) { background: var(--blush); }
   &:disabled { opacity: 0.3; cursor: not-allowed; }
   &.danger:hover { background: #fbe9e7; color: #b3261e; border-color: #f2b8b5; }
+}
+
+.plan-banners {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--blush);
+  font-size: 0.8rem;
+  i { margin-top: 2px; color: var(--gold-dark); }
+  &.error {
+    background: #fbeae8;
+    color: #8c1d18;
+    i { color: #b3261e; }
+  }
+}
+
+.upgrade-link {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--gold);
+  border-radius: 30px;
+  background: #fff;
+  color: var(--gold-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover { background: var(--gold); color: var(--dark); }
+
+  &.inline {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    text-decoration: underline;
+    &:hover { background: none; color: var(--dark); }
+  }
+}
+
+.plan-note {
+  margin: -6px 0 14px;
+  font-size: 0.78rem;
+  color: var(--gold-dark);
+}
+
+.nav-table {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.image-index {
+  flex: 1;
+  font-size: 0.78rem;
+  color: var(--sage);
+}
+
+.btn-add:disabled,
+:deep(.btn-add:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-add,

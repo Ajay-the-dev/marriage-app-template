@@ -5,31 +5,94 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    // weddings/{uid}: one invitation per user
-    match /weddings/{uid} {
-      // Guests can open a single invitation by id, but can't list them all
+    // weddings/{weddingId}: an account can own many.
+    // Weddings saved before multi-wedding support use the owner's uid as id.
+    match /weddings/{weddingId} {
+      // Guests can open a single invitation by id
       allow get: if true;
+      // Owners can list their own (the query must filter on ownerId)
+      allow list: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
-      allow create, update: if signedInAs(uid)
-        && request.resource.data.keys().hasOnly(['ownerId', 'code', 'config', 'updatedAt'])
-        && request.resource.data.ownerId == uid
-        && request.resource.data.config is map
-        // The code must be reserved for this user in codes/{code}
-        && getAfter(/databases/$(database)/documents/codes/$(request.resource.data.code)).data.uid == uid
-        // and can never change once set
-        && (resource == null
-            || resource.data.get('code', null) == null
-            || resource.data.code == request.resource.data.code);
+      allow create: if request.auth != null
+        && validWedding(weddingId, request.auth.uid)
+        && withinLimits(request.resource.data.config, planLimits(request.auth.uid))
+        && request.resource.data.get('uploads', 0) == 0;
 
-      allow delete: if signedInAs(uid);
+      allow update: if request.auth != null
+        && resource.data.ownerId == request.auth.uid
+        && validWedding(weddingId, request.auth.uid)
+        // The code can never change once set
+        && (resource.data.get('code', null) == null
+            || resource.data.code == request.resource.data.code)
+        && validUpdate(planLimits(request.auth.uid));
+
+      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
     }
 
-    // codes/{code}: reserves each 12-character code for exactly one user
+    function validWedding(weddingId, uid) {
+      let data = request.resource.data;
+      let reserved = getAfter(/databases/$(database)/documents/codes/$(data.code)).data;
+      return data.keys().hasOnly(['ownerId', 'code', 'config', 'createdAt', 'updatedAt', 'uploads', 'locked'])
+        && data.ownerId == uid
+        && data.config is map
+        // The code must be reserved for this user and this wedding
+        // (older codes have no weddingId; their wedding's id is the uid)
+        && reserved.uid == uid
+        && reserved.get('weddingId', uid) == weddingId;
+    }
+
+    function validUpdate(limits) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let configChanged = after.config != before.config;
+      let uploadsBefore = before.get('uploads', 0);
+      let uploadsAfter = after.get('uploads', 0);
+      // Content changes must fit the plan, and not while locked
+      return (!configChanged || (withinLimits(after.config, limits) && !before.get('locked', false)))
+        // The upload counter only goes up, and only up to the plan's limit
+        && uploadsAfter >= uploadsBefore
+        && (uploadsAfter == uploadsBefore || uploadsAfter <= limits.uploads);
+    }
+
+    // Keep in sync with src/config/plans.js
+    function planLimits(uid) {
+      let planDoc = /databases/$(database)/documents/plans/$(uid);
+      let plus = exists(planDoc) && get(planDoc).data.get('plan', '') == 'plus';
+      return plus
+        ? { 'uploads': 100, 'events': 10, 'milestones': 25, 'gallery': 25, 'saveTheDate': 5 }
+        : { 'uploads': 25, 'events': 3, 'milestones': 10, 'gallery': 4, 'saveTheDate': 2 };
+    }
+
+    function withinLimits(config, limits) {
+      return config.eventsPage.events.size() <= limits.events
+        && config.storyPage.milestones.size() <= limits.milestones
+        && config.momentsPage.images.size() <= limits.gallery
+        && config.saveTheDate.images.size() <= limits.saveTheDate;
+    }
+
+    // plans/{uid}: { plan: 'plus' }. Set by hand in the console; missing = Free.
+    // Public so guest links can apply the owner's plan.
+    match /plans/{uid} {
+      allow get: if true;
+    }
+
+    // views/{weddingId}: unique guest visitors. Guests aren't signed in, so
+    // anyone may add exactly 1. Public so guest links can apply the visitor limit.
+    match /views/{weddingId} {
+      allow get: if true;
+      allow create: if exists(/databases/$(database)/documents/weddings/$(weddingId))
+        && request.resource.data.keys().hasOnly(['count'])
+        && request.resource.data.count == 1;
+      allow update: if request.resource.data.keys().hasOnly(['count'])
+        && request.resource.data.count == resource.data.count + 1;
+    }
+
+    // codes/{code}: reserves each 12-character code for exactly one wedding
     match /codes/{code} {
       allow get: if true;
       allow create: if signedInAs(request.resource.data.uid)
         && code.matches('^[A-Z0-9]{12}$')
-        && request.resource.data.keys().hasOnly(['uid', 'createdAt']);
+        && request.resource.data.keys().hasOnly(['uid', 'weddingId', 'createdAt']);
       // No update/delete: a code stays with its owner forever
     }
   }

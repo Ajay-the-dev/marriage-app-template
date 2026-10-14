@@ -24,6 +24,11 @@
                         <span class="countdown-label">{{ unit.label }}</span>
                     </div>
                 </div>
+
+                <!-- Signed-out visitors go via login (the settings guard redirects them) -->
+                <RouterLink v-if="showCreate" :to="{ name: 'settings' }" class="hero-create">
+                    <i class="fa-solid fa-pen-to-square me-2"></i>{{ auth.isLoggedIn ? 'My invitations' : 'Login to create' }}
+                </RouterLink>
             </div>
             <img :src="hero.backgroundImage" :alt="`${wedding.groom.shortName} & ${wedding.bride.shortName}`" class="full-screen-img push-back" ref="bgImage"/>
         </div>
@@ -33,9 +38,16 @@
 import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import Basic from "@/views/Basic.vue";
 import gsap from "gsap";
+import { useRoute } from "vue-router";
 import { useWeddingStore } from "@/stores/wedding";
+import { useAuthStore } from "@/stores/auth";
 
 const wedding = useWeddingStore();
+const auth = useAuthStore();
+const route = useRoute();
+// Not on shared invitations (/<code>) — guests shouldn't see it.
+// Waits for Firebase to restore the session so the label doesn't flip.
+const showCreate = computed(() => !route.params.code && auth.initialized);
 const hero = computed(() => wedding.hero);
 
 const bgImage = ref(null);
@@ -170,6 +182,23 @@ onBeforeUnmount(() => {
     text-transform: uppercase;
     margin-top: 0.2rem;
     opacity: 0.85;
+}
+
+.hero-create {
+    margin-top: 1.75rem;
+    padding: 0.6rem 1.4rem;
+    border: 1px solid var(--gold);
+    border-radius: 999px;
+    color: var(--gold-light);
+    font-family: var(--font-serif);
+    letter-spacing: 0.1em;
+    text-decoration: none;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.hero-create:hover {
+    background-color: var(--gold);
+    color: var(--dark);
 }
 
 .full-screen-img {

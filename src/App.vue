@@ -5,22 +5,23 @@ import { useRoute } from 'vue-router'
 import floatingMenu from "@/components/bottomMenu.vue";
 import bytespeaks from "./components/bytespeaks.vue";
 import imageSlider from "./components/imageSlider.vue";
-import { useWeddingStore, weddingStatus } from "@/stores/wedding";
-import { useAuthStore } from "@/stores/auth";
+import UpgradePlus from "@/components/UpgradePlus.vue";
+import { useWeddingStore, weddingStatus, ownerPlan } from "@/stores/wedding";
+import { getPlan } from "@/config/plans";
 import { applyTheme } from "@/config/themes";
 
 const wedding = useWeddingStore()
-const auth = useAuthStore()
 const route = useRoute()
 // Settings and login render on their own, without the invitation chrome
 const isBare = computed(() => !!route.meta.bare)
 
 const shareCode = computed(() => route.params.code || null)
 
-// Guests open /<code>; everyone else sees the signed-in user's wedding
-// (or the template when signed out).
-watch([shareCode, () => auth.user?.uid], ([code, uid]) => {
-  const load = code ? wedding.loadByCode(code) : wedding.loadForUser(uid)
+// Guests open /<code>; the site root shows the default template.
+// Settings pages load the wedding being edited themselves.
+watch([shareCode, isBare], ([code, bare]) => {
+  if (bare) return
+  const load = code ? wedding.loadByCode(code) : wedding.loadTemplate()
   load.catch((error) => console.error('Could not load wedding:', error))
 }, { immediate: true })
 
@@ -42,6 +43,7 @@ watchEffect(() => {
 </script>
 
 <template>
+  <UpgradePlus />
   <template v-if="isBare">
     <RouterView />
   </template>
@@ -49,22 +51,22 @@ watchEffect(() => {
     <template v-if="weddingStatus === 'loading'">
       <i class="fa-solid fa-spinner fa-spin"></i>
     </template>
-    <template v-else-if="weddingStatus === 'not-found'">
+    <template v-else-if="weddingStatus === 'blocked'">
+      <i class="fa-regular fa-envelope"></i>
+      <h1>Invitation unavailable</h1>
+      <p>This invitation can't be viewed right now. Please check with the couple.</p>
+    </template>
+    <template v-else>
       <i class="fa-regular fa-envelope-open"></i>
       <h1>Invitation not found</h1>
       <p>Please check the link you were given.</p>
-    </template>
-    <template v-else>
-      <i class="fa-solid fa-triangle-exclamation"></i>
-      <h1>Couldn't load this invitation</h1>
-      <p>Check your connection and refresh the page.</p>
     </template>
   </div>
   <template v-else>
     <imageSlider :visible="showImagePopup" @update:visible="showImagePopup = $event"/>
     <floatingMenu v-if="!showImagePopup"/>
     <RouterView />
-    <bytespeaks />
+    <bytespeaks v-if="!getPlan(ownerPlan).hideBadge" />
   </template>
 </template>
 <style>

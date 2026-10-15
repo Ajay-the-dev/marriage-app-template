@@ -36,6 +36,8 @@ export const uploadImage = async (file, { uid, key }) => {
   if (!isCloudinaryConfigured) {
     throw new Error('Cloudinary is not configured (see .env.example)')
   }
+  // Every image lives under its owner's folder, never a shared one
+  if (!uid) throw new Error('Please sign in again to upload images')
   const body = new FormData()
   body.append('file', await compressImage(file))
   body.append('upload_preset', uploadPreset)

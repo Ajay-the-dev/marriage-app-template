@@ -13,6 +13,7 @@ export const PLANS = {
     saveTheDate: 2,
     editNavigation: false,
     hideBadge: false,
+    history: 0, // earlier saved versions kept per invitation
   },
   plus: {
     label: 'Plus',
@@ -26,6 +27,7 @@ export const PLANS = {
     saveTheDate: 5,
     editNavigation: true,
     hideBadge: true,
+    history: 5,
   },
 }
 

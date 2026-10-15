@@ -2,10 +2,6 @@
   <Basic>
     <section class="auth-section">
       <div class="auth-card">
-        <router-link to="/" class="back-link" title="Back to site">
-          <i class="fa-solid fa-arrow-left"></i>
-        </router-link>
-
         <div class="auth-head">
           <!-- <span class="monogram">{{ wedding.site.monogram }}</span> -->
           <h1>{{ heading }}</h1>
@@ -76,6 +72,9 @@
             </svg>
             Continue with Google
           </button>
+          <button type="button" class="btn-demo" :disabled="busy" @click="showDemo">
+            <i class="fa-solid fa-eye"></i> Show demo
+          </button>
         </template>
       </div>
     </section>
@@ -88,6 +87,7 @@ import { useRoute, useRouter } from "vue-router";
 import Basic from "@/views/Basic.vue";
 import { useWeddingStore } from "@/stores/wedding";
 import { useAuthStore, authErrorMessage } from "@/stores/auth";
+import { startDemo } from "@/stores/demo";
 
 const wedding = useWeddingStore();
 const auth = useAuthStore();
@@ -164,6 +164,11 @@ const submit = () => {
   });
 };
 
+const showDemo = () => {
+  startDemo();
+  router.push("/");
+};
+
 const oauth = (provider) =>
   run(async () => {
     await auth.loginWith(provider);
@@ -195,21 +200,6 @@ const oauth = (provider) =>
   border-radius: 20px;
   padding: 40px 32px 32px;
   box-shadow: 0 24px 60px -24px color-mix(in srgb, var(--shadow) 35%, transparent);
-}
-
-.back-link {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--text);
-  text-decoration: none;
-  transition: background 0.2s;
-  &:hover { background: var(--blush); }
 }
 
 .auth-head {
@@ -372,6 +362,26 @@ const oauth = (provider) =>
   background: var(--card);
   color: var(--dark);
   &:not(:disabled):hover { background: var(--blush); }
+}
+
+.btn-demo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--gold-dark);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.2s;
+  small { color: var(--sage); font-size: 0.75rem; }
+  &:not(:disabled):hover { background: var(--blush); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 
 .divider {

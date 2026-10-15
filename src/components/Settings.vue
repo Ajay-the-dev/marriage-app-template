@@ -1,6 +1,6 @@
 <template>
   <Basic>
-    <section class="settings-section">
+    <section class="settings-section" @focusin="trackSection">
       <!-- Toolbar -->
       <header class="settings-toolbar">
         <div class="toolbar-inner">
@@ -13,8 +13,8 @@
               <span class="status" :class="statusType">{{ statusText }}</span>
               <span v-if="weddingCode" class="code-chip">
                 Code: <strong>{{ weddingCode }}</strong>
-                <button type="button" title="Copy guest link" @click="copyShareLink">
-                  <i class="fa-solid" :class="codeCopied ? 'fa-check' : 'fa-link'"></i> {{ codeCopied ? 'Copied' : 'Copy link' }}
+                <button type="button" title="Copy the share message with the guest link" @click="copyShareLink">
+                  <i class="fa-solid" :class="codeCopied ? 'fa-check' : 'fa-link'"></i> {{ codeCopied ? 'Copied' : 'Copy invite' }}
                 </button>
                 <a :href="shareLink" target="_blank" rel="noopener" title="Open guest view">
                   <i class="fa-solid fa-arrow-up-right-from-square"></i>
@@ -27,6 +27,25 @@
             <button class="btn-ghost" @click="discard" :disabled="!isDirty || readOnly" title="Discard unsaved changes">
               <i class="fa-solid fa-rotate-left"></i><span>Discard</span>
             </button>
+            <button
+              class="btn-ghost"
+              @click="toggleEditLock"
+              :disabled="lastSaved === null || planLocked || lockBusy || (!editLocked && isDirty)"
+              :title="editLocked ? 'Unlock to edit again' : isDirty ? 'Save or discard your changes before locking' : 'Lock so it can\'t be edited by mistake'"
+            >
+              <i class="fa-solid" :class="lockBusy ? 'fa-spinner fa-spin' : editLocked ? 'fa-lock-open' : 'fa-lock'"></i><span>{{ editLocked ? 'Unlock' : 'Lock' }}</span>
+            </button>
+            <button
+              class="btn-ghost"
+              @click="toggleHidden"
+              :disabled="lastSaved === null || hideBusy"
+              :title="weddingMeta.hidden ? 'Guests see a hidden page. Show it to them again' : 'Hide from guests'"
+            >
+              <i class="fa-solid" :class="hideBusy ? 'fa-spinner fa-spin' : weddingMeta.hidden ? 'fa-eye' : 'fa-eye-slash'"></i><span>{{ weddingMeta.hidden ? 'Show' : 'Hide' }}</span>
+            </button>
+            <button class="btn-ghost" @click="openHistory" :disabled="lastSaved === null" title="Earlier saved versions">
+              <i class="fa-solid" :class="limits.history ? 'fa-clock-rotate-left' : 'fa-lock'"></i><span>History</span>
+            </button>
             <template v-if="showImportExport">
             <button class="btn-ghost" @click="importInput.click()" :disabled="lastSaved === null || readOnly" title="Import a JSON file">
               <i class="fa-solid fa-file-import"></i><span>Import</span>
@@ -35,6 +54,17 @@
               <i class="fa-solid fa-download"></i><span>Export</span>
             </button>
             </template>
+            <button
+              v-if="shownIssues.length"
+              type="button"
+              class="issues-chip"
+              :class="{ error: errorIssues.length }"
+              :title="shownIssues[0].message"
+              @click="jumpToIssue(shownIssues[0])"
+            >
+              <i class="fa-solid" :class="errorIssues.length ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'"></i>
+              {{ shownIssues.length }} need{{ shownIssues.length === 1 ? 's' : '' }} attention
+            </button>
             <button class="btn-primary" @click="save" :disabled="lastSaved === null || (!isDirty && weddingCode) || saving || readOnly || overList.length > 0">
               <i class="fa-solid fa-floppy-disk"></i><span>{{ saving ? 'Saving…' : 'Save' }}</span>
             </button>
@@ -49,8 +79,19 @@
             </button>
           </div>
         </div>
-        <nav class="section-jump">
-          <a v-for="s in sections" :key="s.id" :href="`#${s.id}`" @click.prevent="jumpTo(s.id)">{{ s.label }}</a>
+        <nav class="section-jump" ref="sectionNav">
+          <a
+            v-for="(s, i) in sections"
+            :key="s.id"
+            :href="`#${s.id}`"
+            :data-section="s.id"
+            :class="{ active: activeSection === s.id, done: i < activeIndex }"
+            :aria-current="activeSection === s.id ? 'step' : null"
+            @click.prevent="jumpTo(s.id)"
+          >
+            <span class="step-num">{{ i + 1 }}</span>
+            <span class="step-label">{{ s.label }}</span>
+          </a>
         </nav>
       </header>
 
@@ -65,7 +106,7 @@
       <template v-else>
       <!-- Plan status (outside the fieldset so Upgrade works when read-only) -->
       <div v-if="myPlan !== null" class="plan-banners">
-        <div v-if="readOnly" class="plan-banner error">
+        <div v-if="planLocked" class="plan-banner error">
           <i class="fa-solid fa-lock"></i>
           <span>This invitation is over your {{ limits.label }} plan's limit of {{ limits.invitations }} invitation{{ limits.invitations === 1 ? '' : 's' }}, so it's read-only and its guest link is off. Upgrade, or delete another invitation to unlock it.</span>
           <button v-if="planId === 'free'" type="button" class="upgrade-link" @click="showUpgrade('invitations')">Upgrade</button>
@@ -74,6 +115,16 @@
           <i class="fa-solid fa-triangle-exclamation"></i>
           <span>Over your {{ limits.label }} plan's limits: {{ overList.join(', ') }}. The guest link is off and you can't save until you remove the extra items, or upgrade.</span>
           <button v-if="planId === 'free'" type="button" class="upgrade-link" @click="showUpgrade()">Upgrade</button>
+        </div>
+        <div v-if="weddingMeta.hidden" class="plan-banner locked">
+          <i class="fa-solid fa-eye-slash"></i>
+          <span>Hidden from guests: the guest link shows a "hidden" page. You can still preview it while signed in.</span>
+          <button type="button" class="upgrade-link" :disabled="hideBusy" @click="toggleHidden">Show to guests</button>
+        </div>
+        <div v-if="editLocked && !planLocked" class="plan-banner locked">
+          <i class="fa-solid fa-lock"></i>
+          <span>This invitation is locked, so it can't be edited. Guests can still open it. Unlock it to make changes.</span>
+          <button type="button" class="upgrade-link" :disabled="lockBusy" @click="toggleEditLock">Unlock</button>
         </div>
         <div class="plan-banner">
           <i class="fa-solid fa-crown"></i>
@@ -84,21 +135,6 @@
 
       <fieldset class="settings-body" :disabled="readOnly">
 
-
-        <!-- Site -->
-        <div class="card" id="site">
-          <h2>Site</h2>
-          <div class="grid">
-            <label class="field span-2">
-              <span>Browser tab title</span>
-              <input v-model="wedding.site.title" />
-            </label>
-            <label class="field">
-              <span>Monogram</span>
-              <input v-model="wedding.site.monogram" placeholder="M&A" />
-            </label>
-          </div>
-        </div>
 
         <!-- Theme -->
         <div class="card" id="theme">
@@ -115,9 +151,9 @@
             >
               <div class="theme-preview">
                 <span class="tp-sub">You are invited</span>
-                <span class="tp-names">{{ wedding.groom.shortName }} &amp; {{ wedding.bride.shortName }}</span>
+                <span class="tp-names">{{ wedding.groom.shortName || 'Groom' }} &amp; {{ wedding.bride.shortName || 'Bride' }}</span>
                 <span class="tp-body">Join us as we celebrate our wedding</span>
-                <span class="tp-button">{{ wedding.site.monogram }}</span>
+                <span class="tp-button">{{ wedding.site.monogram || 'G&B' }}</span>
               </div>
               <div class="theme-swatches">
                 <span v-for="c in ['cream', 'gold-light', 'gold', 'gold-dark', 'dark']" :key="c" :style="{ background: theme.colors[c] }"></span>
@@ -136,7 +172,7 @@
           <h2>{{ key === 'groom' ? 'Groom' : 'Bride' }}</h2>
           <div class="partner-layout">
             <div class="photo-column">
-              <img :src="wedding[key].photo" class="photo-preview" alt="" @click="!readOnly && photoInputs[key].click()" />
+              <img :src="wedding[key].photo || PLACEHOLDER_PHOTO" class="photo-preview" alt="" @click="!readOnly && photoInputs[key].click()" />
               <button class="btn-upload" @click="photoInputs[key].click()" :disabled="uploading === key">
                 <i class="fa-solid" :class="uploading === key ? 'fa-spinner fa-spin' : 'fa-camera'"></i>
                 {{ uploading === key ? 'Uploading…' : 'Upload photo' }}
@@ -152,67 +188,304 @@
             <div class="grid">
               <label class="field">
                 <span>Full name</span>
-                <input v-model="wedding[key].name" />
+                <input v-model="wedding[key].name" maxlength="60" :id="`${key}-name`" :class="issueClass(`${key}-name`)" :placeholder="`Eg: ${examples[key].name}`" />
+                <FieldIssue :for="`${key}-name`" />
               </label>
               <label class="field">
                 <span>Short name (home page)</span>
-                <input v-model="wedding[key].shortName" />
+                <input v-model="wedding[key].shortName" maxlength="30" :id="`${key}-shortName`" :class="issueClass(`${key}-shortName`)" :placeholder="`Eg: ${examples[key].shortName}`" />
               </label>
               <label class="field">
                 <span>Role label</span>
-                <input v-model="wedding[key].roleLabel" />
+                <input v-model="wedding[key].roleLabel" maxlength="30" :placeholder="`Eg: ${examples[key].roleLabel}`" />
               </label>
               <label class="field span-2">
                 <span>Parents line</span>
-                <input v-model="wedding[key].parents" />
+                <input v-model="wedding[key].parents" maxlength="150" :placeholder="`Eg: ${examples[key].parents}`" />
               </label>
               <label class="field span-2">
                 <span>Bio</span>
-                <textarea v-model="wedding[key].bio" rows="4"></textarea>
+                <textarea v-model="wedding[key].bio" rows="4" maxlength="600" :id="`${key}-bio`" :class="issueClass(`${key}-bio`)" :placeholder="`Eg: ${examples[key].bio}`"></textarea>
+                <FieldIssue :for="`${key}-bio`" />
               </label>
             </div>
           </div>
 
           <h3>Social links</h3>
+          <div class="social-toggles" role="group" :aria-label="`${key} social links`">
+            <button
+              v-for="t in SOCIAL_TYPES"
+              :key="t"
+              type="button"
+              class="social-toggle"
+              :class="{ open: socials.isOpen(key, t), filled: socials.url(key, t) }"
+              :aria-expanded="socials.isOpen(key, t)"
+              :title="socials.url(key, t) ? `Edit ${t} link` : `Add ${t} link`"
+              @click="socials.toggle(key, t)"
+            >
+              <i class="fa-brands" :class="`fa-${t}`"></i>
+              <span>{{ t }}</span>
+              <i v-if="socials.url(key, t)" class="fa-solid fa-check social-check"></i>
+            </button>
+          </div>
           <div class="list">
-            <div class="list-row" v-for="(social, i) in wedding[key].socials" :key="i">
-              <select v-model="social.type" class="narrow">
-                <option v-for="t in availableSocialTypes(wedding[key].socials, social)" :key="t" :value="t">{{ t }}</option>
-              </select>
-              <input v-model="social.url" placeholder="https://…" />
-              <button class="icon-btn danger" @click="remove(wedding[key].socials, i)" title="Remove">
+            <template v-for="t in SOCIAL_TYPES" :key="t">
+            <div v-if="socials.isOpen(key, t)" class="list-row">
+              <span class="social-label narrow"><i class="fa-brands" :class="`fa-${t}`"></i> {{ t }}</span>
+              <input
+                type="url"
+                maxlength="300"
+                :data-social="`${key}:${t}`"
+                :id="socials.id(key, t)"
+                :class="issueClass(socials.id(key, t))"
+                :value="socials.url(key, t)"
+                :placeholder="socialExamples[t]"
+                @input="socials.set(key, t, $event.target.value)"
+              />
+              <button class="icon-btn danger" @click="socials.remove(key, t)" title="Remove">
                 <i class="fa-solid fa-trash"></i>
               </button>
+              <FieldIssue :for="socials.id(key, t)" class="row-issue" />
+            </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Couple page -->
+        <div class="card" id="couple-page">
+          <h2>Couple page</h2>
+          <div class="grid">
+            <label class="field">
+              <span>Sub title</span>
+              <select v-model="coupleSubTitleChoice">
+                <option value="" disabled>Choose a sub title</option>
+                <option v-for="text in coupleSubTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="coupleSubTitleChoice === CUSTOM"
+                v-model="wedding.couplePage.subTitle"
+                maxlength="60"
+                placeholder="Eg: Meet the Couple"
+              />
+            </label>
+            <label class="field">
+              <span>Title</span>
+              <select v-model="coupleTitleChoice">
+                <option value="" disabled>Choose a title</option>
+                <option v-for="text in coupleTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="coupleTitleChoice === CUSTOM"
+                v-model="wedding.couplePage.title"
+                maxlength="60"
+                placeholder="Eg: Arjun & Meera"
+              />
+            </label>
+          </div>
+        </div>
+
+        <!-- Events -->
+        <div class="card" id="events">
+          <h2>Events</h2>
+          <div class="grid">
+            <label class="field">
+              <span>Sub title</span>
+              <select v-model="eventsSubTitleChoice">
+                <option value="" disabled>Choose a sub title</option>
+                <option v-for="text in eventsSubTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="eventsSubTitleChoice === CUSTOM"
+                v-model="wedding.eventsPage.subTitle"
+                maxlength="60"
+                placeholder="Eg: Join Our Celebrations"
+              />
+            </label>
+            <label class="field">
+              <span>Title</span>
+              <select v-model="eventsTitleChoice">
+                <option value="" disabled>Choose a title</option>
+                <option v-for="text in eventsTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="eventsTitleChoice === CUSTOM"
+                v-model="wedding.eventsPage.title"
+                maxlength="60"
+                placeholder="Eg: The Wedding Itinerary"
+              />
+            </label>
+            <label class="field">
+              <span>Map button label</span>
+              <input v-model="wedding.eventsPage.mapButtonLabel" maxlength="30" placeholder="Eg: View on Map" />
+            </label>
+            <div class="field span-2">
+              <span>Events</span>
+              <div class="template-pills" role="group" aria-label="Events">
+                <button
+                  v-for="name in eventList.names"
+                  :key="name"
+                  type="button"
+                  class="template-pill"
+                  :class="{ selected: eventList.has(name) }"
+                  :aria-pressed="eventList.has(name)"
+                  :title="eventList.has(name) ? `Remove ${name}` : `Add ${name}`"
+                  :disabled="readOnly || (!eventList.has(name) && eventList.full())"
+                  @click="eventList.toggle(name)"
+                >
+                  <i class="fa-solid" :class="eventList.has(name) ? 'fa-check' : 'fa-plus'"></i> {{ name }}
+                </button>
+                <button
+                  type="button"
+                  class="template-pill"
+                  title="Add one with your own name"
+                  :disabled="readOnly || eventList.full()"
+                  @click="eventList.addCustom"
+                >
+                  <i class="fa-solid fa-pen"></i> Custom
+                </button>
+              </div>
             </div>
           </div>
-          <button
-            v-if="availableSocialTypes(wedding[key].socials).length"
-            class="btn-add"
-            @click="wedding[key].socials.push({ type: availableSocialTypes(wedding[key].socials)[0], url: '' })"
-          >
-            <i class="fa-solid fa-plus"></i> Add social link
+
+          <div class="item-card" v-for="(event, i) in wedding.eventsPage.events" :key="i">
+            <div class="item-head">
+              <strong>{{ String(i + 1).padStart(2, '0') }} · {{ event.name || 'Untitled event' }}</strong>
+              <ItemControls :list="wedding.eventsPage.events" :index="i" />
+            </div>
+            <div class="grid">
+              <label class="field span-2">
+                <span>Name</span>
+                <select :value="eventList.nameChoice(event)" :id="`event-${i}-name`" :class="issueClass(`event-${i}-name`)" @change="eventList.setName(event, $event.target.value)">
+                  <option value="" disabled>Choose an event</option>
+                  <option v-for="name in eventList.names" :key="name" :value="name">{{ name }}</option>
+                  <option :value="CUSTOM">Custom…</option>
+                </select>
+                <input
+                  v-if="eventList.nameChoice(event) === CUSTOM"
+                  v-model="event.name"
+                  maxlength="40"
+                  :class="issueClass(`event-${i}-name`)"
+                  placeholder="Eg: Nichayathartham"
+                />
+                <FieldIssue :for="`event-${i}-name`" />
+              </label>
+              <label class="field">
+                <span>Day</span>
+                <input v-model.trim="event.day" inputmode="numeric" maxlength="2" :id="`event-${i}-day`" :class="issueClass(`event-${i}-day`)" placeholder="Eg: 12" />
+                <FieldIssue :for="`event-${i}-day`" />
+              </label>
+              <label class="field">
+                <span>Month</span>
+                <select v-model="event.month" :id="`event-${i}-month`" :class="issueClass(`event-${i}-month`)">
+                  <option value="" disabled>Choose a month</option>
+                  <option v-if="event.month && !MONTHS.includes(event.month)" :value="event.month">{{ event.month }}</option>
+                  <option v-for="m in MONTHS" :key="m" :value="m">{{ m }}</option>
+                </select>
+                <FieldIssue :for="`event-${i}-month`" />
+              </label>
+              <label class="field span-2">
+                <span>Time</span>
+                <input v-model="event.time" maxlength="40" placeholder="Eg: 10:00 AM – 12:00 PM" />
+              </label>
+              <label class="field">
+                <span>Venue</span>
+                <input v-model="event.venue" maxlength="80" :id="`event-${i}-venue`" :class="issueClass(`event-${i}-venue`)" placeholder="Eg: Sri Krishna Mahal" />
+                <FieldIssue :for="`event-${i}-venue`" />
+              </label>
+              <label class="field">
+                <span>Location</span>
+                <input v-model="event.location" maxlength="80" placeholder="Eg: Chennai" />
+              </label>
+              <label class="field span-2">
+                <span>Map URL (optional, otherwise searches venue + location)</span>
+                <input v-model.trim="event.mapUrl" type="url" maxlength="500" :id="`event-${i}-mapUrl`" :class="issueClass(`event-${i}-mapUrl`)" placeholder="Eg: https://maps.app.goo.gl/…" />
+                <FieldIssue :for="`event-${i}-mapUrl`" />
+              </label>
+            </div>
+          </div>
+          <button class="btn-add" :disabled="wedding.eventsPage.events.length >= limits.events" @click="wedding.eventsPage.events.push(blankEvent())">
+            <i class="fa-solid fa-plus"></i> Add event ({{ wedding.eventsPage.events.length }} / {{ limits.events }})
           </button>
         </div>
 
         <!-- Hero -->
         <div class="card" id="hero">
-          <h2>Home page</h2>
+          <div class="card-head">
+            <h2>Home page</h2>
+            <div class="template-pills" role="radiogroup" aria-label="Home page template">
+              <button
+                v-for="t in heroTemplates"
+                :key="t.id"
+                type="button"
+                role="radio"
+                class="template-pill"
+                :class="{ selected: (wedding.hero.template || 'classic') === t.id }"
+                :aria-checked="(wedding.hero.template || 'classic') === t.id"
+                :title="t.description"
+                :disabled="readOnly"
+                @click="wedding.hero.template = t.id"
+              >
+                <i class="fa-solid" :class="t.icon"></i> {{ t.label }}
+              </button>
+            </div>
+          </div>
           <div class="grid">
             <label class="field span-2">
               <span>Invite line</span>
-              <input v-model="wedding.hero.inviteLine" />
+              <select v-model="inviteChoice">
+                <option value="" disabled>Choose an invite line</option>
+                <option v-for="line in inviteLines" :key="line" :value="line">{{ line }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="inviteChoice === CUSTOM"
+                v-model="wedding.hero.inviteLine"
+                maxlength="120"
+                id="hero-inviteLine"
+                :class="issueClass('hero-inviteLine')"
+                placeholder="Eg: You are invited to the wedding ceremony of"
+              />
+              <FieldIssue for="hero-inviteLine" />
             </label>
+            <div v-if="heroSuggestions.length" class="span-2 note-suggestions" role="group" aria-label="Fill from an event">
+              <span>Fill from an event</span>
+              <button
+                v-for="(s, i) in heroSuggestions"
+                :key="i"
+                type="button"
+                class="note-suggestion event-fill"
+                :class="{ selected: isHeroFrom(s) }"
+                :title="`Use ${s.label}'s date, time and place`"
+                @click="fillHeroFrom(s)"
+              >
+                <strong>{{ s.label }}</strong>
+                <small>{{ [s.dateTexts[1], s.timeText, s.locationText].filter(Boolean).join(' · ') }}</small>
+              </button>
+            </div>
             <label class="field">
               <span>Date text</span>
-              <input v-model="wedding.hero.dateText" />
+              <input v-model="wedding.hero.dateText" maxlength="40" list="hero-date-options" autocomplete="off" placeholder="Eg: 12 · 06 · 2027" />
+              <datalist id="hero-date-options">
+                <option v-for="text in heroDateTexts" :key="text" :value="text"></option>
+              </datalist>
             </label>
             <label class="field">
               <span>Time text</span>
-              <input v-model="wedding.hero.timeText" />
+              <input v-model="wedding.hero.timeText" maxlength="40" list="hero-time-options" autocomplete="off" placeholder="Eg: 10 : 00 AM - 12 : 00 PM" />
+              <datalist id="hero-time-options">
+                <option v-for="text in heroTimeTexts" :key="text" :value="text"></option>
+              </datalist>
             </label>
             <label class="field span-2">
               <span>Location text</span>
-              <input v-model="wedding.hero.locationText" />
+              <input v-model="wedding.hero.locationText" maxlength="100" list="hero-location-options" autocomplete="off" placeholder="Eg: SRI KRISHNA MAHAL, CHENNAI" />
+              <datalist id="hero-location-options">
+                <option v-for="text in heroLocationTexts" :key="text" :value="text"></option>
+              </datalist>
             </label>
           </div>
 
@@ -221,6 +494,9 @@
             <div class="background-preview" @click="!readOnly && photoInputs.background.click()">
               <img v-if="wedding.hero.backgroundImage" :src="wedding.hero.backgroundImage" alt="" />
               <span v-else>No background image</span>
+              <span v-if="backgroundCredit" class="photo-watermark">
+                Photo by {{ backgroundCredit.photographer }} on Unsplash
+              </span>
             </div>
             <div class="background-fields">
               <button class="btn-upload" @click="photoInputs.background.click()" :disabled="uploading === 'background'">
@@ -237,20 +513,344 @@
             </div>
           </div>
 
-          <h3>Countdown</h3>
-          <div class="grid">
-            <label class="field toggle">
-              <input type="checkbox" v-model="wedding.hero.countdown.enabled" />
-              <span>Show countdown</span>
+          <p class="background-gallery-label">Or pick one of ours</p>
+          <div class="background-gallery">
+            <button
+              v-for="src in backgroundGallery"
+              :key="src"
+              type="button"
+              class="background-option"
+              :class="{ selected: wedding.hero.backgroundImage === src }"
+              :disabled="readOnly"
+              @click="wedding.hero.backgroundImage = src"
+            >
+              <img :src="src.replace('/bg-home/', '/bg-home/thumbs/')" alt="" loading="lazy" />
+              <i v-if="wedding.hero.backgroundImage === src" class="fa-solid fa-circle-check"></i>
+              <span v-if="unsplashCredit(src)" class="photo-watermark" :title="`Photo by ${unsplashCredit(src).photographer} on Unsplash`">
+                Unsplash · {{ unsplashCredit(src).photographer }}
+              </span>
+            </button>
+          </div>
+
+          <div class="card-subhead">
+            <h3>Countdown</h3>
+            <div class="template-pills" role="radiogroup" aria-label="Countdown style">
+              <button
+                v-for="t in countdownStyles"
+                :key="t.id"
+                type="button"
+                role="radio"
+                class="template-pill"
+                :class="{ selected: countdownChoice === t.id }"
+                :aria-checked="countdownChoice === t.id"
+                :title="t.description"
+                :disabled="readOnly"
+                @click="countdownChoice = t.id"
+              >
+                <i class="fa-solid" :class="t.icon"></i> {{ t.label }}
+              </button>
+            </div>
+          </div>
+          <div class="grid" v-if="wedding.hero.countdown.enabled">
+            <label class="field span-2">
+              <span>Counts down to (Eg: 12 Jun 2027, 10:00 AM)</span>
+              <input type="datetime-local" step="1" v-model="weddingDate" id="wedding-date" :class="issueClass('wedding-date')" />
+              <FieldIssue for="wedding-date" />
             </label>
-            <label class="field">
-              <span>Counts down to</span>
-              <input type="datetime-local" step="1" v-model="wedding.hero.countdown.target" />
-            </label>
+            <div v-if="heroTargets.length" class="span-2 note-suggestions date-suggestions" role="group" aria-label="Use an event's date">
+              <button
+                v-for="s in heroTargets"
+                :key="s.label"
+                type="button"
+                class="template-pill"
+                :class="{ selected: weddingDate === s.target }"
+                @click="weddingDate = s.target"
+              >
+                <i class="fa-regular fa-calendar"></i> {{ s.label }} · {{ s.dateTexts[1] }}
+              </button>
+            </div>
             <label class="field" v-for="(label, unit) in wedding.hero.countdown.labels" :key="unit">
               <span>Label for {{ unit }}</span>
-              <input v-model="wedding.hero.countdown.labels[unit]" />
+              <input v-model="wedding.hero.countdown.labels[unit]" maxlength="12" :placeholder="`Eg: ${countdownExamples[unit]}`" />
             </label>
+          </div>
+        </div>
+
+        <!-- Story -->
+        <div class="card" id="story">
+          <h2>Story</h2>
+          <div class="grid">
+            <label class="field">
+              <span>Sub title</span>
+              <select v-model="storySubTitleChoice">
+                <option value="" disabled>Choose a sub title</option>
+                <option v-for="text in storySubTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="storySubTitleChoice === CUSTOM"
+                v-model="wedding.storyPage.subTitle"
+                maxlength="60"
+                placeholder="Eg: How We Got Here"
+              />
+            </label>
+            <label class="field">
+              <span>Title</span>
+              <select v-model="storyTitleChoice">
+                <option value="" disabled>Choose a title</option>
+                <option v-for="text in storyTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="storyTitleChoice === CUSTOM"
+                v-model="wedding.storyPage.title"
+                maxlength="60"
+                placeholder="Eg: Our Sweet Journey"
+              />
+            </label>
+            <label class="field">
+              <span>Year label</span>
+              <input v-model="wedding.storyPage.yearLabel" maxlength="20" placeholder="Eg: Year:" />
+            </label>
+            <div class="field span-2">
+              <span>Milestones</span>
+              <div class="template-pills" role="group" aria-label="Milestones">
+                <button
+                  v-for="name in milestoneList.names"
+                  :key="name"
+                  type="button"
+                  class="template-pill"
+                  :class="{ selected: milestoneList.has(name) }"
+                  :aria-pressed="milestoneList.has(name)"
+                  :title="milestoneList.has(name) ? `Remove ${name}` : `Add ${name}`"
+                  :disabled="readOnly || (!milestoneList.has(name) && milestoneList.full())"
+                  @click="milestoneList.toggle(name)"
+                >
+                  <i class="fa-solid" :class="milestoneList.has(name) ? 'fa-check' : 'fa-plus'"></i> {{ name }}
+                </button>
+                <button
+                  type="button"
+                  class="template-pill"
+                  title="Add one with your own name"
+                  :disabled="readOnly || milestoneList.full()"
+                  @click="milestoneList.addCustom"
+                >
+                  <i class="fa-solid fa-pen"></i> Custom
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="item-card" v-for="(milestone, i) in wedding.storyPage.milestones" :key="i">
+            <div class="item-head">
+              <strong>{{ String(i + 1).padStart(2, '0') }} · {{ milestone.name || 'Untitled milestone' }}</strong>
+              <ItemControls :list="wedding.storyPage.milestones" :index="i" />
+            </div>
+            <div class="grid">
+              <label class="field span-2">
+                <span>Name</span>
+                <select :value="milestoneList.nameChoice(milestone)" :id="`milestone-${i}-name`" :class="issueClass(`milestone-${i}-name`)" @change="milestoneList.setName(milestone, $event.target.value)">
+                  <option value="" disabled>Choose a milestone</option>
+                  <option v-for="name in milestoneList.names" :key="name" :value="name">{{ name }}</option>
+                  <option :value="CUSTOM">Custom…</option>
+                </select>
+                <input
+                  v-if="milestoneList.nameChoice(milestone) === CUSTOM"
+                  v-model="milestone.name"
+                  maxlength="40"
+                  :class="issueClass(`milestone-${i}-name`)"
+                  placeholder="Eg: Our First Trip"
+                />
+                <FieldIssue :for="`milestone-${i}-name`" />
+              </label>
+              <label class="field">
+                <span>Day</span>
+                <input v-model.trim="milestone.day" inputmode="numeric" maxlength="2" :id="`milestone-${i}-day`" :class="issueClass(`milestone-${i}-day`)" placeholder="Eg: 14" />
+                <FieldIssue :for="`milestone-${i}-day`" />
+              </label>
+              <label class="field">
+                <span>Month</span>
+                <select v-model="milestone.month">
+                  <option value="">No month</option>
+                  <option v-if="milestone.month && !SHORT_MONTHS.includes(milestone.month)" :value="milestone.month">{{ milestone.month }}</option>
+                  <option v-for="m in SHORT_MONTHS" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Year</span>
+                <input v-model.trim="milestone.year" inputmode="numeric" maxlength="4" :id="`milestone-${i}-year`" :class="issueClass(`milestone-${i}-year`)" placeholder="Eg: 2025" />
+                <FieldIssue :for="`milestone-${i}-year`" />
+              </label>
+              <label class="field span-2">
+                <span>Note</span>
+                <textarea v-model="milestone.note" rows="2" maxlength="300" placeholder="Eg: The day our paths crossed for the very first time."></textarea>
+              </label>
+              <div class="span-2 note-suggestions" role="group" :aria-label="`Note suggestions for ${milestone.name || 'this milestone'}`">
+                <span>Suggestions</span>
+                <button
+                  v-for="text in storyNoteSuggestions(milestone.name)"
+                  :key="text"
+                  type="button"
+                  class="note-suggestion"
+                  :class="{ selected: milestone.note === text }"
+                  :aria-pressed="milestone.note === text"
+                  @click="milestone.note = text"
+                >
+                  {{ text }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <button class="btn-add" :disabled="wedding.storyPage.milestones.length >= limits.milestones" @click="wedding.storyPage.milestones.push(blankMilestone())">
+            <i class="fa-solid fa-plus"></i> Add milestone ({{ wedding.storyPage.milestones.length }} / {{ limits.milestones }})
+          </button>
+        </div>
+
+        <!-- Moments -->
+        <div class="card" id="moments">
+          <h2>Moments gallery</h2>
+          <div class="grid">
+            <label class="field">
+              <span>Sub title</span>
+              <select v-model="momentsSubTitleChoice">
+                <option value="" disabled>Choose a sub title</option>
+                <option v-for="text in momentsSubTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="momentsSubTitleChoice === CUSTOM"
+                v-model="wedding.momentsPage.subTitle"
+                maxlength="60"
+                placeholder="Eg: Captured Moments"
+              />
+            </label>
+            <label class="field">
+              <span>Title</span>
+              <select v-model="momentsTitleChoice">
+                <option value="" disabled>Choose a title</option>
+                <option v-for="text in momentsTitles" :key="text" :value="text">{{ text }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="momentsTitleChoice === CUSTOM"
+                v-model="wedding.momentsPage.title"
+                maxlength="60"
+                placeholder="Eg: Our Gallery"
+              />
+            </label>
+          </div>
+          <ImageList :images="wedding.momentsPage.images" :max="limits.gallery" upload-key="gallery" />
+        </div>
+
+        <!-- Save the date -->
+        <div class="card" id="save-the-date">
+          <h2>Save the date popup</h2>
+          <div class="grid">
+            <label class="field toggle">
+              <input type="checkbox" v-model="wedding.saveTheDate.enabled" />
+              <span>Show popup on open</span>
+            </label>
+            <label class="field">
+              <span>Hide after (leave empty to never expire)</span>
+              <input type="datetime-local" step="1" v-model="wedding.saveTheDate.expiresAt" id="std-expires" :class="issueClass('std-expires')" />
+              <FieldIssue for="std-expires" />
+              <button
+                v-if="wedding.hero.countdown.target && wedding.saveTheDate.expiresAt !== wedding.hero.countdown.target"
+                type="button"
+                class="link-btn"
+                @click="wedding.saveTheDate.expiresAt = wedding.hero.countdown.target"
+              >
+                Use wedding date
+              </button>
+            </label>
+            <label class="field">
+              <span>Slide every (seconds)</span>
+              <input type="number" min="1" max="30" :value="wedding.saveTheDate.autoplayMs / 1000"
+                @change="$event.target.value = wedding.saveTheDate.autoplayMs / 1000"
+                @input="wedding.saveTheDate.autoplayMs = Math.min(30, Math.max(1, Number($event.target.value) || 1)) * 1000" />
+            </label>
+          </div>
+          <div id="std-images">
+            <ImageList :images="wedding.saveTheDate.images" :max="limits.saveTheDate" upload-key="save-the-date" />
+            <FieldIssue for="std-images" />
+          </div>
+        </div>
+
+        <!-- Site -->
+        <div class="card" id="site">
+          <h2>Site</h2>
+          <div class="grid">
+            <label class="field span-2">
+              <span>Browser tab title</span>
+              <select v-model="siteTitleChoice">
+                <option value="" disabled>Choose a tab title</option>
+                <option v-for="title in siteTitles" :key="title" :value="title">{{ title }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="siteTitleChoice === CUSTOM"
+                v-model="wedding.site.title"
+                maxlength="100"
+                id="site-title"
+                :class="issueClass('site-title')"
+                placeholder="Eg: Arjun & Meera — Wedding Invitation"
+              />
+              <FieldIssue for="site-title" />
+            </label>
+            <label class="field">
+              <span>Monogram</span>
+              <select v-model="monogramChoice">
+                <option value="" disabled>Choose a monogram</option>
+                <option v-for="monogram in monograms" :key="monogram" :value="monogram">{{ monogram }}</option>
+                <option :value="CUSTOM">Custom…</option>
+              </select>
+              <input
+                v-if="monogramChoice === CUSTOM"
+                v-model="wedding.site.monogram"
+                maxlength="6"
+                id="site-monogram"
+                :class="issueClass('site-monogram')"
+                placeholder="Eg: A&M"
+              />
+              <FieldIssue for="site-monogram" />
+            </label>
+            <label class="field span-2">
+              <span>Share message</span>
+              <textarea
+                ref="shareMessageInput"
+                v-model="wedding.site.shareMessage"
+                rows="3"
+                maxlength="500"
+                id="site-shareMessage"
+                :class="issueClass('site-shareMessage')"
+                :placeholder="DEFAULT_SHARE_MESSAGE"
+              ></textarea>
+              <FieldIssue for="site-shareMessage" />
+            </label>
+            <div class="span-2 note-suggestions" role="group" aria-label="Insert a detail">
+              <span>Insert</span>
+              <button v-for="p in SHARE_PLACEHOLDERS" :key="p.key" type="button" class="template-pill" @click="insertSharePlaceholder(p.key)">
+                <i class="fa-solid fa-plus"></i> {{ p.label }}
+              </button>
+            </div>
+            <div class="span-2 note-suggestions" role="group" aria-label="Share message suggestions">
+              <span>Suggestions</span>
+              <button
+                v-for="text in SHARE_MESSAGE_SUGGESTIONS"
+                :key="text"
+                type="button"
+                class="note-suggestion"
+                :class="{ selected: wedding.site.shareMessage === text }"
+                :aria-pressed="wedding.site.shareMessage === text"
+                @click="wedding.site.shareMessage = text"
+              >
+                {{ text }}
+              </button>
+            </div>
+            <div class="span-2 share-preview">
+              <span>What guests receive</span>
+              <p>{{ shareMessagePreview }}</p>
+            </div>
           </div>
         </div>
 
@@ -276,11 +876,11 @@
               </span>
               <label class="nav-field">
                 <span class="nav-field-label">Label</span>
-                <input v-model="item.label" />
+                <input v-model="item.label" maxlength="30" placeholder="Eg: The Couple" />
               </label>
               <label class="nav-field">
                 <span class="nav-field-label">Mobile label</span>
-                <input v-model="item.shortLabel" />
+                <input v-model="item.shortLabel" maxlength="20" placeholder="Eg: Couple" />
               </label>
               <div class="nav-field nav-icon-field">
               <span class="nav-field-label">Icon</span>
@@ -314,168 +914,6 @@
           </fieldset>
         </div>
 
-        <!-- Couple page -->
-        <div class="card" id="couple-page">
-          <h2>Couple page</h2>
-          <div class="grid">
-            <label class="field">
-              <span>Sub title</span>
-              <input v-model="wedding.couplePage.subTitle" />
-            </label>
-            <label class="field">
-              <span>Title</span>
-              <input v-model="wedding.couplePage.title" />
-            </label>
-          </div>
-        </div>
-
-        <!-- Events -->
-        <div class="card" id="events">
-          <h2>Events</h2>
-          <div class="grid">
-            <label class="field">
-              <span>Sub title</span>
-              <input v-model="wedding.eventsPage.subTitle" />
-            </label>
-            <label class="field">
-              <span>Title</span>
-              <input v-model="wedding.eventsPage.title" />
-            </label>
-            <label class="field">
-              <span>Map button label</span>
-              <input v-model="wedding.eventsPage.mapButtonLabel" />
-            </label>
-          </div>
-
-          <div class="item-card" v-for="(event, i) in wedding.eventsPage.events" :key="i">
-            <div class="item-head">
-              <strong>{{ String(i + 1).padStart(2, '0') }} · {{ event.name || 'Untitled event' }}</strong>
-              <ItemControls :list="wedding.eventsPage.events" :index="i" />
-            </div>
-            <div class="grid">
-              <label class="field span-2">
-                <span>Name</span>
-                <input v-model="event.name" />
-              </label>
-              <label class="field">
-                <span>Day</span>
-                <input v-model="event.day" placeholder="12" />
-              </label>
-              <label class="field">
-                <span>Month</span>
-                <input v-model="event.month" placeholder="July" />
-              </label>
-              <label class="field span-2">
-                <span>Time</span>
-                <input v-model="event.time" />
-              </label>
-              <label class="field">
-                <span>Venue</span>
-                <input v-model="event.venue" />
-              </label>
-              <label class="field">
-                <span>Location</span>
-                <input v-model="event.location" />
-              </label>
-              <label class="field span-2">
-                <span>Map URL (optional, otherwise searches venue + location)</span>
-                <input v-model="event.mapUrl" placeholder="https://maps.app.goo.gl/…" />
-              </label>
-            </div>
-          </div>
-          <button class="btn-add" :disabled="wedding.eventsPage.events.length >= limits.events" @click="wedding.eventsPage.events.push({ name: '', day: '', month: '', time: '', venue: '', location: '', mapUrl: '' })">
-            <i class="fa-solid fa-plus"></i> Add event ({{ wedding.eventsPage.events.length }} / {{ limits.events }})
-          </button>
-        </div>
-
-        <!-- Story -->
-        <div class="card" id="story">
-          <h2>Story</h2>
-          <div class="grid">
-            <label class="field">
-              <span>Sub title</span>
-              <input v-model="wedding.storyPage.subTitle" />
-            </label>
-            <label class="field">
-              <span>Title</span>
-              <input v-model="wedding.storyPage.title" />
-            </label>
-            <label class="field">
-              <span>Year label</span>
-              <input v-model="wedding.storyPage.yearLabel" />
-            </label>
-          </div>
-
-          <div class="item-card" v-for="(milestone, i) in wedding.storyPage.milestones" :key="i">
-            <div class="item-head">
-              <strong>{{ String(i + 1).padStart(2, '0') }} · {{ milestone.name || 'Untitled milestone' }}</strong>
-              <ItemControls :list="wedding.storyPage.milestones" :index="i" />
-            </div>
-            <div class="grid">
-              <label class="field span-2">
-                <span>Name</span>
-                <input v-model="milestone.name" />
-              </label>
-              <label class="field">
-                <span>Day</span>
-                <input v-model="milestone.day" />
-              </label>
-              <label class="field">
-                <span>Month</span>
-                <input v-model="milestone.month" />
-              </label>
-              <label class="field">
-                <span>Year</span>
-                <input v-model="milestone.year" />
-              </label>
-              <label class="field span-2">
-                <span>Note</span>
-                <textarea v-model="milestone.note" rows="2"></textarea>
-              </label>
-            </div>
-          </div>
-          <button class="btn-add" :disabled="wedding.storyPage.milestones.length >= limits.milestones" @click="wedding.storyPage.milestones.push({ name: '', day: '', month: '', year: '', note: '' })">
-            <i class="fa-solid fa-plus"></i> Add milestone ({{ wedding.storyPage.milestones.length }} / {{ limits.milestones }})
-          </button>
-        </div>
-
-        <!-- Moments -->
-        <div class="card" id="moments">
-          <h2>Moments gallery</h2>
-          <div class="grid">
-            <label class="field">
-              <span>Sub title</span>
-              <input v-model="wedding.momentsPage.subTitle" />
-            </label>
-            <label class="field">
-              <span>Title</span>
-              <input v-model="wedding.momentsPage.title" />
-            </label>
-          </div>
-          <ImageList :images="wedding.momentsPage.images" :max="limits.gallery" upload-key="gallery" />
-        </div>
-
-        <!-- Save the date -->
-        <div class="card" id="save-the-date">
-          <h2>Save the date popup</h2>
-          <div class="grid">
-            <label class="field toggle">
-              <input type="checkbox" v-model="wedding.saveTheDate.enabled" />
-              <span>Show popup on open</span>
-            </label>
-            <label class="field">
-              <span>Hide after (leave empty to never expire)</span>
-              <input type="datetime-local" step="1" v-model="wedding.saveTheDate.expiresAt" />
-            </label>
-            <label class="field">
-              <span>Slide every (seconds)</span>
-              <input type="number" min="1" :value="wedding.saveTheDate.autoplayMs / 1000"
-                @input="wedding.saveTheDate.autoplayMs = Math.max(1, Number($event.target.value) || 1) * 1000" />
-            </label>
-          </div>
-          <ImageList :images="wedding.saveTheDate.images" :max="limits.saveTheDate" upload-key="save-the-date" />
-        </div>
-
       </fieldset>
       </template>
 
@@ -494,14 +932,16 @@
         </div>
       </Transition>
     </section>
+    <VersionHistory v-model:open="historyOpen" :wedding-id="weddingId" :keep="limits.history" :read-only="readOnly" @restore="restoreVersion" />
   </Basic>
 </template>
 
 <script setup>
-import { ref, computed, h, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, reactive, computed, h, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import Basic from "@/views/Basic.vue";
+import VersionHistory from "@/components/VersionHistory.vue";
 import { useWeddingStore, weddingCode, weddingStatus, weddingMeta } from "@/stores/wedding";
-import { recordUpload } from "@/services/weddings";
+import { recordUpload, setEditLocked, setHidden } from "@/services/weddings";
 import { useMyPlan } from "@/composables/plan";
 import { getPlan, overLimits } from "@/config/plans";
 import { showUpgrade } from "@/composables/upgrade";
@@ -509,6 +949,13 @@ import { useAuthStore } from "@/stores/auth";
 import { uploadImage as uploadToCloudinary } from "@/services/cloudinary";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { themes, fontsUrl, getTheme } from "@/config/themes";
+import { PLACEHOLDER_PHOTO } from "@/config/blankWedding";
+import { validateWedding, MONTHS, SHORT_MONTHS } from "@/utils/validation";
+import { unsplashCredit } from "@/utils/unsplash";
+import { storyNoteSuggestions } from "@/config/storyNotes";
+import { eventSuggestions, suggestionValues } from "@/utils/eventSuggestions";
+import { SOCIAL_TYPES, useSocialLinks } from "@/composables/socialLinks";
+import { shareMessage, DEFAULT_SHARE_MESSAGE, SHARE_MESSAGE_SUGGESTIONS, SHARE_PLACEHOLDERS } from "@/utils/shareMessage";
 
 const wedding = useWeddingStore();
 const auth = useAuthStore();
@@ -524,25 +971,303 @@ const myPlan = useMyPlan();
 const planId = computed(() => myPlan.value ?? "free");
 const limits = computed(() => getPlan(planId.value));
 const overList = computed(() => overLimits(wedding.$state, limits.value));
-// Locked = over the account's invitation limit
-const readOnly = computed(() => weddingMeta.value.locked);
+// Read-only when over the account's invitation limit, or locked by the owner
+const planLocked = computed(() => weddingMeta.value.locked);
+const editLocked = computed(() => weddingMeta.value.editLocked);
+const readOnly = computed(() => planLocked.value || editLocked.value);
 const uploadsLeft = computed(() => limits.value.uploads - weddingMeta.value.uploads);
 
 const sections = [
-  { id: "site", label: "Site" },
   { id: "theme", label: "Theme" },
   { id: "groom", label: "Groom" },
   { id: "bride", label: "Bride" },
-  { id: "hero", label: "Home" },
-  { id: "navigation", label: "Navigation" },
   { id: "couple-page", label: "Couple" },
   { id: "events", label: "Events" },
+  { id: "hero", label: "Home" },
   { id: "story", label: "Story" },
   { id: "moments", label: "Moments" },
   { id: "save-the-date", label: "Save the date" },
+  { id: "site", label: "Site" },
+  { id: "navigation", label: "Navigation" },
 ];
 
-const socialTypes = ["instagram", "facebook", "whatsapp"];
+/* ── Text fields: pick a suggestion or write your own ── */
+const CUSTOM = "__custom";
+// Select value for target()[key]; saved text that isn't a suggestion counts as custom
+const suggestionChoice = (target, key, suggestions) => {
+  const custom = ref(false);
+  return computed({
+    get: () => {
+      const text = target()[key];
+      if (suggestions.value.includes(text) && !custom.value) return text;
+      return custom.value || text ? CUSTOM : "";
+    },
+    set: (choice) => {
+      custom.value = choice === CUSTOM;
+      if (!custom.value) target()[key] = choice;
+    },
+  });
+};
+
+const inviteLines = computed(() => [
+  "You are invited to the wedding ceremony of",
+  "Together with their families",
+  "Please join us to celebrate the wedding of",
+  "With the blessings of our elders",
+  "Save the date for the wedding of",
+  "We request the pleasure of your company at the marriage of",
+]);
+const inviteChoice = suggestionChoice(() => wedding.hero, "inviteLine", inviteLines);
+
+const coupleSubTitles = computed(() => [
+  "Meet the Couple",
+  "The Happy Couple",
+  "Bride & Groom",
+  "Two Hearts, One Love",
+  "Made for Each Other",
+  "Together Forever",
+]);
+const coupleSubTitleChoice = suggestionChoice(() => wedding.couplePage, "subTitle", coupleSubTitles);
+
+// Name-based titles follow the groom / bride short names
+const coupleTitles = computed(() => {
+  const groom = wedding.groom.shortName || wedding.groom.name;
+  const bride = wedding.bride.shortName || wedding.bride.name;
+  const named = groom && bride ? [`${groom} & ${bride}`, `${bride} & ${groom}`] : [];
+  return [...named, "Our Love Story", "Happily Ever After", "Two Souls, One Heart", "The Beginning of Forever"];
+});
+const coupleTitleChoice = suggestionChoice(() => wedding.couplePage, "title", coupleTitles);
+
+// Tab titles follow the groom / bride short names
+const siteTitles = computed(() => {
+  const groom = wedding.groom.shortName || wedding.groom.name;
+  const bride = wedding.bride.shortName || wedding.bride.name;
+  if (!groom || !bride) return ["Our Wedding Invitation", "Save the Date", "You're Invited!"];
+  return [
+    `${groom} & ${bride} — Wedding Invitation`,
+    `${bride} & ${groom} — Wedding Invitation`,
+    `${groom} weds ${bride}`,
+    `${bride} weds ${groom}`,
+    `${groom} & ${bride} — Save the Date`,
+    `The Wedding of ${groom} & ${bride}`,
+    `${groom} ❤ ${bride}`,
+  ];
+});
+const siteTitleChoice = suggestionChoice(() => wedding.site, "title", siteTitles);
+
+// Monograms are built from the groom / bride initials
+const monograms = computed(() => {
+  const initial = (person) => (person.shortName || person.name || "").trim().charAt(0).toUpperCase();
+  const groom = initial(wedding.groom);
+  const bride = initial(wedding.bride);
+  if (!groom || !bride) return [];
+  // Set drops repeats when both initials match (A&A)
+  return [...new Set([
+    `${groom}&${bride}`,
+    `${bride}&${groom}`,
+    `${groom}♥${bride}`,
+    `${groom}+${bride}`,
+    `${groom}·${bride}`,
+    `${groom}${bride}`,
+  ])];
+});
+const monogramChoice = suggestionChoice(() => wedding.site, "monogram", monograms);
+
+const eventsSubTitles = computed(() => [
+  "Join Our Celebrations",
+  "Save the Dates",
+  "Celebrate With Us",
+  "The Big Days",
+  "Wedding Events",
+  "Be Our Guest",
+]);
+const eventsSubTitleChoice = suggestionChoice(() => wedding.eventsPage, "subTitle", eventsSubTitles);
+
+const eventsTitles = computed(() => [
+  "The Wedding Itinerary",
+  "Wedding Schedule",
+  "When & Where",
+  "Order of Events",
+  "Our Wedding Celebrations",
+  "Events & Venues",
+]);
+const eventsTitleChoice = suggestionChoice(() => wedding.eventsPage, "title", eventsTitles);
+
+const storySubTitles = computed(() => [
+  "How We Got Here",
+  "Our Journey",
+  "How It All Began",
+  "Once Upon a Time",
+  "From Strangers to Soulmates",
+  "Our Love Story",
+]);
+const storySubTitleChoice = suggestionChoice(() => wedding.storyPage, "subTitle", storySubTitles);
+
+const storyTitles = computed(() => [
+  "Our Sweet Journey",
+  "Our Story",
+  "A Love Story",
+  "The Story of Us",
+  "Two Paths, One Journey",
+  "Moments That Made Us",
+]);
+const storyTitleChoice = suggestionChoice(() => wedding.storyPage, "title", storyTitles);
+
+const momentsSubTitles = computed(() => [
+  "Captured Moments",
+  "Memories We Cherish",
+  "Snapshots of Us",
+  "Frozen in Time",
+  "Glimpses of Love",
+  "Moments to Remember",
+]);
+const momentsSubTitleChoice = suggestionChoice(() => wedding.momentsPage, "subTitle", momentsSubTitles);
+
+const momentsTitles = computed(() => [
+  "Our Gallery",
+  "Picture Perfect",
+  "Our Moments",
+  "Through the Lens",
+  "Love in Frames",
+  "Memory Lane",
+]);
+const momentsTitleChoice = suggestionChoice(() => wedding.momentsPage, "title", momentsTitles);
+
+// Lists whose items are named from suggestions: one pill per name toggles it in or out,
+// "Custom" adds an item with its own name. Items switched to "Custom…" are tracked here.
+const customNamed = reactive(new WeakSet());
+const isFilled = (item) => Object.entries(item).some(([k, v]) => k !== "name" && v);
+const namedList = (getList, names, getMax, blank) => {
+  const has = (name) => getList().some((item) => item.name === name);
+  const full = () => getList().length >= getMax();
+  return {
+    names,
+    has,
+    full,
+    // New items go in suggestion order (Engagement before Marriage, etc.)
+    toggle: (name) => {
+      const list = getList();
+      const i = list.findIndex((item) => item.name === name);
+      if (i !== -1) {
+        if (isFilled(list[i]) && !confirm(`Remove ${name} and the details entered for it?`)) return;
+        list.splice(i, 1);
+        return;
+      }
+      if (full()) return;
+      const rank = names.indexOf(name);
+      const next = list.findIndex((item) => names.indexOf(item.name) > rank);
+      list.splice(next === -1 ? list.length : next, 0, blank(name));
+    },
+    addCustom: () => {
+      if (full()) return;
+      getList().push(blank());
+      customNamed.add(getList().at(-1));
+    },
+    nameChoice: (item) => {
+      if (names.includes(item.name) && !customNamed.has(item)) return item.name;
+      return customNamed.has(item) || item.name ? CUSTOM : "";
+    },
+    setName: (item, choice) => {
+      if (choice === CUSTOM) return customNamed.add(item);
+      customNamed.delete(item);
+      item.name = choice;
+    },
+  };
+};
+
+const blankEvent = (name = "") => ({ name, day: "", month: "", time: "", venue: "", location: "", mapUrl: "" });
+const eventList = namedList(
+  () => wedding.eventsPage.events,
+  ["Engagement", "Haldi", "Mehendi", "Sangeet", "Marriage", "Reception"],
+  () => limits.value.events,
+  blankEvent,
+);
+
+const blankMilestone = (name = "") => ({ name, day: "", month: "", year: "", note: "" });
+const milestoneList = namedList(
+  () => wedding.storyPage.milestones,
+  ["First Meet", "First Date", "Falling in Love", "The Proposal", "Families Meet", "Engagement", "Wedding"],
+  () => limits.value.milestones,
+  blankMilestone,
+);
+
+// Layouts for the home page hero (Home.vue renders each)
+const heroTemplates = [
+  { id: "classic", label: "Classic", icon: "fa-align-center", description: "Centered names over the full background" },
+  { id: "framed", label: "Framed", icon: "fa-square", description: "Details inside an ornate card" },
+  { id: "minimal", label: "Minimal", icon: "fa-minus", description: "Names on one line, details along the bottom" },
+];
+
+// Countdown looks (Home.vue styles each); "off" hides it
+const countdownStyles = [
+  { id: "off", label: "Off", icon: "fa-eye-slash", description: "Don't show a countdown" },
+  { id: "classic", label: "Classic", icon: "fa-hourglass-half", description: "Numbers with labels underneath" },
+  { id: "boxes", label: "Boxes", icon: "fa-border-all", description: "Each unit in its own tile" },
+  { id: "circles", label: "Circles", icon: "fa-circle-notch", description: "Each unit in a gold ring" },
+  { id: "inline", label: "Inline", icon: "fa-grip-lines", description: "One line of text" },
+];
+const countdownChoice = computed({
+  get: () => (wedding.hero.countdown.enabled ? wedding.hero.countdown.style || "classic" : "off"),
+  set: (id) => {
+    wedding.hero.countdown.enabled = id !== "off";
+    if (id !== "off") wedding.hero.countdown.style = id;
+  },
+});
+
+
+/* ── "Eg:" placeholders for empty fields ── */
+const examples = {
+  groom: {
+    name: "Arjun Kumar",
+    shortName: "Arjun",
+    roleLabel: "The Groom",
+    parents: "Son of Mr. Ravi Kumar & Mrs. Lakshmi Kumar",
+    bio: "A software engineer who loves cricket, road trips and filter coffee.",
+  },
+  bride: {
+    name: "Meera Nair",
+    shortName: "Meera",
+    roleLabel: "The Bride",
+    parents: "Daughter of Mr. Suresh Nair & Mrs. Anjali Nair",
+    bio: "A doctor with a love for classical dance, books and long walks by the beach.",
+  },
+};
+const socialExamples = {
+  instagram: "Eg: https://instagram.com/arjun",
+  facebook: "Eg: https://facebook.com/arjun",
+  whatsapp: "Eg: https://wa.me/919876543210",
+};
+// The countdown target is the wedding date; the save-the-date popup follows it
+// until "Hide after" is set to something else
+const weddingDate = computed({
+  get: () => wedding.hero.countdown.target,
+  set: (date) => {
+    const popup = wedding.saveTheDate;
+    if (!popup.expiresAt || popup.expiresAt === wedding.hero.countdown.target) popup.expiresAt = date;
+    wedding.hero.countdown.target = date;
+  },
+});
+
+// Home page date, time and place suggested from the events
+const heroSuggestions = computed(() => eventSuggestions(wedding.eventsPage.events, wedding.hero.countdown.target));
+const heroTargets = computed(() => heroSuggestions.value.filter((s) => s.target));
+const heroDateTexts = computed(() => suggestionValues(heroSuggestions.value, (s) => s.dateTexts));
+const heroTimeTexts = computed(() => suggestionValues(heroSuggestions.value, (s) => [s.timeText]));
+const heroLocationTexts = computed(() => suggestionValues(heroSuggestions.value, (s) => [s.locationText]));
+// Fills whatever the event has: countdown date & time, date text, time text, location
+const fillHeroFrom = (s) => {
+  if (s.target) weddingDate.value = s.target;
+  if (s.dateTexts[0]) wedding.hero.dateText = s.dateTexts[0];
+  if (s.timeText) wedding.hero.timeText = s.timeText;
+  if (s.locationText) wedding.hero.locationText = s.locationText;
+};
+const isHeroFrom = (s) =>
+  (!s.target || wedding.hero.countdown.target === s.target)
+  && (!s.dateTexts.length || s.dateTexts.includes(wedding.hero.dateText))
+  && (!s.timeText || wedding.hero.timeText === s.timeText)
+  && (!s.locationText || wedding.hero.locationText === s.locationText);
+
+const countdownExamples = { days: "Days", hours: "Hrs", minutes: "Min", seconds: "Sec" };
 
 // Icons offered in the navigation icon picker (Font Awesome 6 free, solid)
 const navIcons = [
@@ -563,9 +1288,8 @@ const iconLabel = (icon) => icon.replace(/^fa-/, "").replace(/-/g, " ");
 const openIconPicker = ref("");
 const closeIconPicker = () => { openIconPicker.value = ""; };
 
-// Platforms not yet used by another link (the current link keeps its own)
-const availableSocialTypes = (socials, current = null) =>
-  socialTypes.filter((t) => t === current?.type || !socials.some((s) => s !== current && s.type === t));
+// Bride's and groom's links: each platform's box opens from its toggle
+const socials = useSocialLinks(wedding, (id) => id && issueFor(id));
 
 /* ── Theme picker ── */
 const themePreviewStyle = (theme) => ({
@@ -629,6 +1353,19 @@ const ImageList = (props) =>
           ? [h("i", { class: "fa-solid fa-spinner fa-spin" }), ` Uploading ${uploadProgress.value}…`]
           : [h("i", { class: "fa-solid fa-cloud-arrow-up" }), ` Upload images (${props.images.length} / ${props.max})`]
       ),
+      props.images.length
+        ? h(
+            "button",
+            {
+              class: "btn-upload btn-clear",
+              disabled: uploading.value === props.uploadKey,
+              onClick: () => {
+                if (confirm(`Remove all ${props.images.length} images?`)) props.images.splice(0);
+              },
+            },
+            [h("i", { class: "fa-solid fa-trash" }), " Remove all"]
+          )
+        : null,
       h("input", {
         type: "file",
         accept: "image/jpeg,image/png,image/webp,image/gif,image/avif",
@@ -682,13 +1419,79 @@ const flash = (text, type) => {
   setTimeout(() => { message.value = ""; messageType.value = ""; }, 4000);
 };
 
+// Hide / show to guests (the owner can still open the guest link)
+const hideBusy = ref(false);
+const toggleHidden = async () => {
+  const hidden = !weddingMeta.value.hidden;
+  hideBusy.value = true;
+  try {
+    await setHidden(weddingId, hidden);
+    weddingMeta.value = { ...weddingMeta.value, hidden };
+    flash(hidden ? "Hidden from guests" : "Visible to guests", "ok");
+  } catch (error) {
+    flash(`Could not ${hidden ? "hide" : "show"} it: ${error.message}`, "error");
+  } finally {
+    hideBusy.value = false;
+  }
+};
+
+// Lock / unlock editing (guests can still open a locked invitation)
+const lockBusy = ref(false);
+const toggleEditLock = async () => {
+  const locked = !editLocked.value;
+  lockBusy.value = true;
+  try {
+    await setEditLocked(weddingId, locked);
+    weddingMeta.value = { ...weddingMeta.value, editLocked: locked };
+    flash(locked ? "Invitation locked" : "Invitation unlocked", "ok");
+  } catch (error) {
+    flash(`Could not ${locked ? "lock" : "unlock"}: ${error.message}`, "error");
+  } finally {
+    lockBusy.value = false;
+  }
+};
+
+/* ── Validation ── */
+// Missing required fields are only flagged once the user has tried to save
+const now = ref(Date.now());
+const clock = setInterval(() => { now.value = Date.now(); }, 60 * 1000);
+const triedSave = ref(false);
+const issues = computed(() => validateWedding(wedding.$state, now.value));
+const shownIssues = computed(() => issues.value.filter((i) => !i.required || triedSave.value));
+const errorIssues = computed(() => issues.value.filter((i) => i.level === "error"));
+const issueFor = (id) => shownIssues.value.find((i) => i.id === id && i.level === "error") || shownIssues.value.find((i) => i.id === id);
+const issueClass = (id) => {
+  const issue = issueFor(id);
+  return issue && (issue.level === "error" ? "invalid" : "attention");
+};
+const FieldIssue = (props) => {
+  const issue = issueFor(props.for);
+  return issue && h("small", { class: ["field-issue", issue.level] }, issue.message);
+};
+FieldIssue.props = ["for"];
+
+const jumpToIssue = (issue) => {
+  const el = document.getElementById(issue.id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.focus?.({ preventScroll: true });
+};
+
 const save = async () => {
+  triedSave.value = true;
+  if (errorIssues.value.length) {
+    const n = errorIssues.value.length;
+    flash(`Fix ${n} problem${n === 1 ? "" : "s"} before saving`, "error");
+    jumpToIssue(errorIssues.value[0]);
+    return;
+  }
   saving.value = true;
   try {
     const body = JSON.stringify(wedding.snapshot());
-    await wedding.saveById(weddingId, auth.user.uid);
+    await wedding.saveById(weddingId, auth.user.uid, { keepVersions: limits.value.history });
     lastSaved.value = body;
-    flash("Saved", "ok");
+    const left = issues.value.length;
+    flash(left ? `Saved · ${left} thing${left === 1 ? "" : "s"} still need${left === 1 ? "s" : ""} attention` : "Saved", left ? "warn" : "ok");
   } catch (error) {
     flash(`Save failed: ${error.message}`, "error");
   } finally {
@@ -699,14 +1502,36 @@ const save = async () => {
 // What guests open: https://<site>/<code>
 const shareLink = computed(() => weddingCode.value && `${window.location.origin}/${weddingCode.value}`);
 const codeCopied = ref(false);
+// The couple's share message with the link filled in
+const shareMessagePreview = computed(() => shareMessage(wedding.$state, shareLink.value || `${window.location.origin}/YOURCODE`));
+const shareMessageInput = ref(null);
+// Puts {key} at the cursor in the share message
+const insertSharePlaceholder = (key) => {
+  const el = shareMessageInput.value;
+  const text = wedding.site.shareMessage || "";
+  const at = el ? el.selectionStart : text.length;
+  const end = el ? el.selectionEnd : text.length;
+  wedding.site.shareMessage = `${text.slice(0, at)}{${key}}${text.slice(end)}`;
+  const cursor = at + key.length + 2;
+  nextTick(() => { el?.focus(); el?.setSelectionRange(cursor, cursor); });
+};
 const copyShareLink = async () => {
   try {
-    await navigator.clipboard.writeText(shareLink.value);
+    await navigator.clipboard.writeText(shareMessage(wedding.$state, shareLink.value));
     codeCopied.value = true;
     setTimeout(() => { codeCopied.value = false; }, 1500);
   } catch {
     flash(`Could not copy, share this link: ${shareLink.value}`, "error");
   }
+};
+
+/* ── Version history (Plus) ── */
+const historyOpen = ref(false);
+const openHistory = () => (limits.value.history ? (historyOpen.value = true) : showUpgrade("history"));
+const restoreVersion = ({ config, label }) => {
+  if (isDirty.value && !confirm("Replace your unsaved changes with this version?")) return;
+  wedding.restore(config);
+  flash(`Restored the version from ${label}. Save to keep it.`, "warn");
 };
 
 const discard = () => {
@@ -798,6 +1623,14 @@ const uploadPhoto = async (key, e) => {
   flash(`${key === "groom" ? "Groom" : "Bride"} photo uploaded, click Save to keep it`, "warn");
 };
 
+// Ready-made backgrounds: every image in public/images/bg-home (only the paths are used).
+// The gallery shows the small copies in bg-home/thumbs.
+// Unsplash ones carry a photographer credit
+const backgroundCredit = computed(() => unsplashCredit(wedding.hero.backgroundImage));
+const backgroundGallery = Object.keys(
+  import.meta.glob("/public/images/bg-home/*.{jpg,jpeg,png,webp,avif}", { query: "?url" }),
+).map((path) => path.replace(/^\/public/, ""));
+
 const uploadBackground = async (e) => {
   const path = await uploadImage("background", e);
   if (!path) return;
@@ -818,7 +1651,56 @@ const importFile = async (e) => {
   }
 };
 
-const jumpTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+const jumpTo = (id) => {
+  setActiveSection(id);
+  // Keep the scroll spy from stepping through every section on the way
+  spyPausedUntil = Date.now() + 900;
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+/* ── Section pills: highlight the section being edited, keep its pill in view ── */
+const sectionNav = ref(null);
+const activeSection = ref("");
+const sectionIds = new Set(sections.map((s) => s.id));
+const activeIndex = computed(() => sections.findIndex((s) => s.id === activeSection.value));
+const setActiveSection = (id) => {
+  if (!sectionIds.has(id) || activeSection.value === id) return;
+  activeSection.value = id;
+  const nav = sectionNav.value;
+  const pill = nav?.querySelector(`[data-section="${id}"]`);
+  if (!pill) return;
+  // Scroll only the pill strip horizontally (scrollIntoView would also move the page)
+  const navBox = nav.getBoundingClientRect();
+  const pillBox = pill.getBoundingClientRect();
+  if (pillBox.left < navBox.left || pillBox.right > navBox.right) {
+    const left = nav.scrollLeft + pillBox.left - navBox.left - (navBox.width - pillBox.width) / 2;
+    nav.scrollTo({ left, behavior: "smooth" });
+  }
+};
+const trackSection = (e) => {
+  const card = e.target.closest?.(".card[id]");
+  if (card) setActiveSection(card.id);
+};
+
+// Scroll spy: the current step is the last section whose top has passed under the toolbar
+let spyPausedUntil = 0;
+let spyFrame = 0;
+const spySections = () => {
+  spyFrame = 0;
+  if (Date.now() < spyPausedUntil) return;
+  const offset = (sectionNav.value?.closest("header")?.offsetHeight ?? 0) + 40;
+  const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+  let current = "";
+  for (const { id } of sections) {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top <= offset) current = id;
+  }
+  if (atBottom) current = sections[sections.length - 1].id;
+  if (current) setActiveSection(current);
+};
+const onScroll = () => {
+  if (!spyFrame) spyFrame = requestAnimationFrame(spySections);
+};
 
 // Warn before leaving with unsaved changes
 const beforeUnload = (e) => {
@@ -827,12 +1709,16 @@ const beforeUnload = (e) => {
 onBeforeRouteLeave(() =>
   leaveConfirmed || !isDirty.value || confirm("You have unsaved changes. Leave anyway?"));
 onMounted(() => {
+  window.addEventListener("scroll", onScroll, { passive: true });
   loadSaved();
   window.addEventListener("beforeunload", beforeUnload);
   document.addEventListener("click", closeIconPicker);
   document.head.appendChild(previewFonts);
 });
 onBeforeUnmount(() => {
+  window.removeEventListener("scroll", onScroll);
+  cancelAnimationFrame(spyFrame);
+  clearInterval(clock);
   window.removeEventListener("beforeunload", beforeUnload);
   document.removeEventListener("click", closeIconPicker);
   previewFonts.remove();
@@ -1008,7 +1894,92 @@ onBeforeUnmount(() => {
     padding: 4px 10px;
     border-radius: 20px;
     background: var(--blush);
+    transition: background 0.2s, color 0.2s, opacity 0.2s;
     &:hover { opacity: 1; }
+    &.active {
+      opacity: 1;
+      color: var(--dark);
+      background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-dark) 100%);
+    }
+  }
+
+  .step-num { display: none; }
+}
+
+/* Desktop: the pills become a wizard stepper */
+@media (min-width: 641px) {
+  .section-jump {
+    gap: 0;
+    padding: 4px 16px 12px;
+
+    a {
+      flex: 1 0 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      position: relative;
+      padding: 0 4px;
+      border-radius: 0;
+      background: none;
+      opacity: 1;
+      font-size: 0.62rem;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+      text-align: center;
+      color: color-mix(in srgb, var(--text) 60%, transparent);
+
+      // Connector line to the previous step
+      &::before {
+        content: "";
+        position: absolute;
+        top: 11px;
+        left: -50%;
+        right: 50%;
+        height: 2px;
+        background: var(--blush);
+        transition: background 0.3s;
+      }
+      &:first-child::before { display: none; }
+
+      &:hover { color: var(--gold-dark); }
+      &:hover .step-num { border-color: var(--gold-dark); }
+
+      &.done {
+        color: var(--text);
+        &::before { background: var(--gold-light); }
+        .step-num { background: var(--gold-light); border-color: var(--gold-light); color: var(--dark); }
+      }
+
+      &.active {
+        background: none;
+        color: var(--gold-dark);
+        font-weight: 600;
+        &::before { background: var(--gold-light); }
+        .step-num {
+          background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-dark) 100%);
+          border-color: var(--gold-dark);
+          color: var(--dark);
+          box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold-light) 35%, transparent);
+        }
+      }
+    }
+
+    .step-num {
+      display: grid;
+      place-items: center;
+      position: relative;
+      z-index: 1;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--blush);
+      background: #fff;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+    }
   }
 }
 
@@ -1046,6 +2017,125 @@ onBeforeUnmount(() => {
     color: var(--sage);
     margin: 22px 0 10px;
   }
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+
+  h2 { margin: 0; }
+}
+
+.card-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 22px 0 10px;
+
+  h3 { margin: 0 !important; }
+}
+
+.template-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.share-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  > span { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; }
+  p {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--blush);
+    font-size: 0.85rem;
+    white-space: pre-line;
+    word-break: break-word;
+  }
+}
+
+/* Ready-made story notes: tap one to fill the note */
+.note-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: -4px;
+  > span {
+    width: 100%;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.6;
+  }
+}
+
+.event-fill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  strong { font-size: 0.8rem; font-weight: 600; }
+  small { font-size: 0.72rem; opacity: 0.75; }
+}
+
+.date-suggestions { margin-top: -6px; }
+
+.note-suggestion {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  text-align: left;
+  border: 1px dashed color-mix(in srgb, var(--gold-light) 80%, transparent);
+  border-radius: 14px;
+  background: #fffdf9;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+
+  &:hover:not(:disabled) { border-color: var(--gold); background: var(--blush); }
+
+  &.selected {
+    border-style: solid;
+    border-color: var(--gold);
+    background: color-mix(in srgb, var(--gold) 15%, #fff);
+    color: var(--gold-dark);
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.template-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--gold-light) 60%, transparent);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--gold-dark);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+
+  i { font-size: 0.7rem; }
+
+  &:hover:not(:disabled) { border-color: var(--gold); }
+
+  &.selected {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #fff;
+  }
+
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 
 .grid {
@@ -1101,6 +2191,42 @@ select {
 }
 
 textarea { resize: vertical; line-height: 1.5; }
+
+/* ── Validation ── */
+input.invalid,
+textarea.invalid,
+select.invalid { border-color: #b3261e !important; }
+input.attention,
+textarea.attention,
+select.attention { border-color: var(--gold-dark) !important; }
+
+.field-issue {
+  font-size: 0.74rem;
+  line-height: 1.3;
+  &.error { color: #b3261e; }
+  &.warn { color: var(--gold-dark); }
+}
+
+.list-row { flex-wrap: wrap; }
+.row-issue { flex-basis: 100%; margin-left: 148px; margin-top: -4px; }
+
+.issues-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  background: var(--blush);
+  color: var(--gold-dark);
+  font-size: 0.78rem;
+  cursor: pointer;
+  &.error {
+    border-color: #b3261e;
+    background: #fbeae8;
+    color: #8c1d18;
+  }
+}
 
 /* ── Theme toast ── */
 .theme-toast {
@@ -1261,6 +2387,24 @@ textarea { resize: vertical; line-height: 1.5; }
   align-items: start;
 }
 
+.photo-watermark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 6px 3px;
+  font-size: 0.55rem;
+  line-height: 1.2;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.background-preview .photo-watermark { font-size: 0.65rem; padding: 14px 10px 6px; }
+
 .background-preview {
   aspect-ratio: 16 / 10;
   border-radius: 12px;
@@ -1272,8 +2416,47 @@ textarea { resize: vertical; line-height: 1.5; }
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
+  position: relative;
 
   img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.background-gallery-label {
+  font-size: 0.8rem;
+  color: var(--sage);
+  margin: 16px 0 8px;
+}
+
+.background-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.background-option {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--blush);
+  cursor: pointer;
+  transition: border-color 0.2s;
+
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  i {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+
+  &:hover:not(:disabled) { border-color: var(--gold-light); }
+  &.selected { border-color: var(--gold); }
+  &:disabled { cursor: not-allowed; opacity: 0.6; }
 }
 
 .background-fields {
@@ -1297,6 +2480,12 @@ textarea { resize: vertical; line-height: 1.5; }
 :deep(.image-list-actions .btn-upload) {
   padding: 7px 16px;
   font-size: 0.78rem;
+}
+
+:deep(.image-list-actions .btn-clear:hover:not(:disabled)) {
+  background: #fbe9e7;
+  color: #b3261e;
+  border-color: #f2b8b5;
 }
 
 .photo-column {
@@ -1350,6 +2539,45 @@ textarea { resize: vertical; line-height: 1.5; }
 }
 
 .narrow { width: 140px !important; flex-shrink: 0; }
+
+/* Social links: a toggle per platform opens its link box */
+.social-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.social-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid color-mix(in srgb, var(--gold-light) 70%, transparent);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.82rem;
+  text-transform: capitalize;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+
+  .fa-brands { font-size: 0.95rem; color: var(--gold-dark); }
+  .social-check { font-size: 0.65rem; color: var(--gold-dark); }
+
+  &:hover:not(:disabled) { border-color: var(--gold); }
+  &.filled { border-color: var(--gold); }
+  &.open { background: var(--blush); border-color: var(--gold-dark); }
+}
+
+.social-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  i { color: var(--gold-dark); }
+}
 
 :deep(.image-list) { margin-top: 18px; }
 
@@ -1433,6 +2661,11 @@ textarea { resize: vertical; line-height: 1.5; }
     color: #8c1d18;
     i { color: #b3261e; }
   }
+  &.locked {
+    align-items: center;
+    background: #fdf3e1;
+    color: #6b4e1f;
+  }
 }
 
 .upgrade-link {
@@ -1495,6 +2728,17 @@ textarea { resize: vertical; line-height: 1.5; }
   font-size: 0.78rem;
   cursor: pointer;
   &:hover { background: var(--blush); }
+}
+
+.link-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--gold-dark);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 /* ── Navigation table ── */

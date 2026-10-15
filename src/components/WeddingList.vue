@@ -40,7 +40,7 @@
         </div>
 
         <div v-else class="wedding-grid">
-          <button class="wedding-card new-card" @click="atLimit && planId === 'free' ? showUpgrade('invitations') : create()" :disabled="creating || (atLimit && planId !== 'free')">
+          <button class="wedding-card new-card" @click="atLimit && planId === 'free' ? showUpgrade('invitations') : (signing = true)" :disabled="creating || (atLimit && planId !== 'free')">
             <i class="fa-solid" :class="creating ? 'fa-spinner fa-spin' : atLimit ? 'fa-lock' : 'fa-plus'"></i>
             <span>{{ creating ? 'Creating…' : atLimit ? `${limits.label} plan limit reached` : 'New invitation' }}</span>
             <small v-if="atLimit && planId === 'free'">Upgrade to Plus for up to {{ PLANS.plus.invitations }}</small>
@@ -53,6 +53,12 @@
               <span v-if="w.config.hero?.dateText" class="date">{{ w.config.hero.dateText }}</span>
               <span v-if="w.locked" class="badge locked-badge">
                 <i class="fa-solid fa-lock"></i> Read-only · guest link off
+              </span>
+              <span v-else-if="w.editLocked" class="badge edit-locked-badge">
+                <i class="fa-solid fa-lock"></i> Locked for editing
+              </span>
+              <span v-if="w.hidden" class="badge hidden-badge">
+                <i class="fa-solid fa-eye-slash"></i> Hidden from guests
               </span>
               <span v-if="w.id in views" class="visitors" :class="visitorState(views[w.id])" title="Unique visitors to the guest link">
                 <i class="fa-solid fa-eye"></i> {{ visitorLabel(views[w.id]) }}
@@ -72,10 +78,27 @@
             </router-link>
             <div class="card-actions">
               <router-link :to="{ name: 'edit-wedding', params: { id: w.id } }" class="btn-ghost">
-                <i class="fa-solid" :class="w.locked ? 'fa-eye' : 'fa-pen'"></i><span>{{ w.locked ? 'View' : 'Edit' }}</span>
+                <i class="fa-solid" :class="w.locked || w.editLocked ? 'fa-eye' : 'fa-pen'"></i><span>{{ w.locked || w.editLocked ? 'View' : 'Edit' }}</span>
               </router-link>
+              <button
+                v-if="!w.locked"
+                class="btn-ghost"
+                @click="toggleEditLock(w)"
+                :disabled="lockingId === w.id"
+                :title="w.editLocked ? 'Unlock to edit again' : 'Lock so it can\'t be edited by mistake'"
+              >
+                <i class="fa-solid" :class="lockingId === w.id ? 'fa-spinner fa-spin' : w.editLocked ? 'fa-lock-open' : 'fa-lock'"></i>
+              </button>
+              <button
+                class="btn-ghost"
+                @click="toggleHidden(w)"
+                :disabled="hidingId === w.id"
+                :title="w.hidden ? 'Show to guests' : 'Hide from guests'"
+              >
+                <i class="fa-solid" :class="hidingId === w.id ? 'fa-spinner fa-spin' : w.hidden ? 'fa-eye' : 'fa-eye-slash'"></i>
+              </button>
               <template v-if="w.code">
-                <button class="btn-ghost" @click="copyLink(w)" title="Copy guest link">
+                <button class="btn-ghost" @click="copyLink(w)" title="Copy the invitation message with the guest link">
                   <i class="fa-solid" :class="copiedId === w.id ? 'fa-check' : 'fa-link'"></i>
                 </button>
                 <a class="btn-ghost" :href="shareLink(w)" target="_blank" rel="noopener" title="Open guest view">
@@ -90,6 +113,7 @@
         </div>
       </div>
     </section>
+    <InvitationAgreement v-model:open="signing" @sign="create" />
   </Basic>
 </template>
 
@@ -97,12 +121,14 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import Basic from "@/views/Basic.vue";
-import weddingConfig from "@/config/wedding.json";
+import InvitationAgreement from "@/components/InvitationAgreement.vue";
+import { blankWedding } from "@/config/blankWedding";
 import { useAuthStore } from "@/stores/auth";
-import { listWeddings, createWedding, deleteWedding, fetchViewCounts, setLocked } from "@/services/weddings";
+import { listWeddings, createWedding, deleteWedding, fetchViewCounts, setLocked, setEditLocked, setHidden } from "@/services/weddings";
 import { useMyPlan } from "@/composables/plan";
 import { PLANS, getPlan, fitToPlan } from "@/config/plans";
 import { showUpgrade } from "@/composables/upgrade";
+import { shareMessage } from "@/utils/shareMessage";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -133,6 +159,8 @@ const syncLocks = async () => {
 };
 const loadError = ref("");
 const creating = ref(false);
+// The agreement dialog, signed before every new invitation
+const signing = ref(false);
 const deletingId = ref("");
 const copiedId = ref("");
 const message = ref("");
@@ -172,7 +200,7 @@ const shareLink = (w) => `${window.location.origin}/${w.code}`;
 
 const copyLink = async (w) => {
   try {
-    await navigator.clipboard.writeText(shareLink(w));
+    await navigator.clipboard.writeText(shareMessage(w.config, shareLink(w)));
     copiedId.value = w.id;
     setTimeout(() => { if (copiedId.value === w.id) copiedId.value = ""; }, 1500);
   } catch {
@@ -180,18 +208,51 @@ const copyLink = async (w) => {
   }
 };
 
-// Starts from the default template and opens it in the editor
-const create = async () => {
+// Starts from a blank invitation and opens it in the editor.
+// agreement = { version, name } from the signed agreement dialog.
+const create = async (agreement) => {
   if (atLimit.value) return;
   creating.value = true;
   try {
-    const config = fitToPlan(JSON.parse(JSON.stringify(weddingConfig)), limits.value);
-    const id = await createWedding(auth.user.uid, config);
+    const config = fitToPlan(blankWedding(), limits.value);
+    const id = await createWedding(auth.user.uid, config, agreement);
     router.push({ name: "edit-wedding", params: { id } });
   } catch (error) {
     flash(`Could not create invitation: ${error.message}`, "error");
   } finally {
     creating.value = false;
+  }
+};
+
+// Owner's lock: guests can still open it, but nobody can edit it until it's unlocked
+const lockingId = ref("");
+const toggleEditLock = async (w) => {
+  const locked = !w.editLocked;
+  lockingId.value = w.id;
+  try {
+    await setEditLocked(w.id, locked);
+    w.editLocked = locked;
+    flash(locked ? "Invitation locked" : "Invitation unlocked", "ok");
+  } catch (error) {
+    flash(`Could not ${locked ? "lock" : "unlock"}: ${error.message}`, "error");
+  } finally {
+    lockingId.value = "";
+  }
+};
+
+// Hidden invitations show guests a "hidden" page until they're shown again
+const hidingId = ref("");
+const toggleHidden = async (w) => {
+  const hidden = !w.hidden;
+  hidingId.value = w.id;
+  try {
+    await setHidden(w.id, hidden);
+    w.hidden = hidden;
+    flash(hidden ? "Invitation hidden from guests" : "Invitation visible to guests", "ok");
+  } catch (error) {
+    flash(`Could not ${hidden ? "hide" : "show"} it: ${error.message}`, "error");
+  } finally {
+    hidingId.value = "";
   }
 };
 
@@ -476,6 +537,8 @@ onMounted(refresh);
   }
 
   .locked-badge { background: #fbeae8; color: #8c1d18; }
+  .edit-locked-badge { background: #fdf3e1; color: #6b4e1f; }
+  .hidden-badge { background: #ecebe8; color: #4a4640; }
 
   .visitor-note {
     font-size: 0.72rem;

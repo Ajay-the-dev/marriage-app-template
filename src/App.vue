@@ -9,6 +9,8 @@ import UpgradePlus from "@/components/UpgradePlus.vue";
 import { useWeddingStore, weddingStatus, ownerPlan } from "@/stores/wedding";
 import { getPlan } from "@/config/plans";
 import { applyTheme } from "@/config/themes";
+import { useAuthStore } from "@/stores/auth";
+import { demoActive, demoSecondsLeft } from "@/stores/demo";
 
 const wedding = useWeddingStore()
 const route = useRoute()
@@ -24,6 +26,14 @@ watch([shareCode, isBare], ([code, bare]) => {
   const load = code ? wedding.loadByCode(code) : wedding.loadTemplate()
   load.catch((error) => console.error('Could not load wedding:', error))
 }, { immediate: true })
+
+// Countdown for signed-out visitors previewing the template
+const auth = useAuthStore()
+const showDemoTimer = computed(() => demoActive.value && !auth.isLoggedIn && !!route.meta.template)
+const demoTimeLeft = computed(() => {
+  const s = demoSecondsLeft.value
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+})
 
 // Save-the-date popup, decided once the wedding has loaded
 const showImagePopup = ref(false)
@@ -56,6 +66,11 @@ watchEffect(() => {
       <h1>Invitation unavailable</h1>
       <p>This invitation can't be viewed right now. Please check with the couple.</p>
     </template>
+    <template v-else-if="weddingStatus === 'hidden'">
+      <i class="fa-regular fa-eye-slash"></i>
+      <h1>Invitation hidden</h1>
+      <p>The couple has hidden this invitation for now. Please check back later.</p>
+    </template>
     <template v-else>
       <i class="fa-regular fa-envelope-open"></i>
       <h1>Invitation not found</h1>
@@ -66,6 +81,9 @@ watchEffect(() => {
     <imageSlider :visible="showImagePopup" @update:visible="showImagePopup = $event"/>
     <floatingMenu v-if="!showImagePopup"/>
     <RouterView />
+    <RouterLink v-if="showDemoTimer" :to="{ name: 'login' }" class="demo-timer" title="Sign in to keep going">
+      <i class="fa-regular fa-clock"></i> Demo · {{ demoTimeLeft }}
+    </RouterLink>
     <bytespeaks v-if="!getPlan(ownerPlan).hideBadge" />
   </template>
 </template>
@@ -101,6 +119,29 @@ watchEffect(() => {
 
 body{
   overflow: hidden;
+}
+
+.demo-timer {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 10001;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  background: color-mix(in srgb, var(--cream) 92%, transparent);
+  color: var(--gold-dark);
+  font-family: var(--font-serif);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+/* Desktop nav runs along the top, so sit bottom-left there */
+@media (min-width: 768px) {
+  .demo-timer { top: auto; right: auto; bottom: 24px; left: 24px; }
 }
 
 </style>

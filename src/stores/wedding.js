@@ -13,10 +13,10 @@ let loading = null
 
 // The code of the wedding currently shown (null until its first save)
 export const weddingCode = ref(null)
-// 'loading' | 'ready' | 'not-found' | 'blocked' (over its owner's plan limits)
+// 'loading' | 'ready' | 'not-found' | 'blocked' (over its owner's plan limits) | 'hidden' (by its owner)
 export const weddingStatus = ref('loading')
-// Bookkeeping for the wedding being edited: { uploads, locked }
-export const weddingMeta = ref({ uploads: 0, locked: false })
+// Bookkeeping for the wedding being edited: { uploads, locked, editLocked, hidden }
+export const weddingMeta = ref({ uploads: 0, locked: false, editLocked: false, hidden: false })
 // Plan of the shown wedding's owner ('free' for the template)
 export const ownerPlan = ref('free')
 
@@ -61,14 +61,14 @@ export const useWeddingStore = defineStore('wedding', {
       loading = fetcher()
         .then((result) => {
           if (loadedKey !== key) return // a newer load replaced this one
-          if (result?.blocked) {
+          if (result?.blocked || result?.hidden) {
             weddingCode.value = null
             this.reset()
-            weddingStatus.value = 'blocked'
+            weddingStatus.value = result.hidden ? 'hidden' : 'blocked'
             return
           }
           weddingCode.value = result?.code ?? null
-          weddingMeta.value = { uploads: result?.uploads ?? 0, locked: !!result?.locked }
+          weddingMeta.value = { uploads: result?.uploads ?? 0, locked: !!result?.locked, editLocked: !!result?.editLocked, hidden: !!result?.hidden }
           ownerPlan.value = result?.plan ?? 'free'
           // Merge over the template so newly added sections always exist
           this.load({ ...clone(weddingConfig), ...result?.config })
@@ -98,8 +98,10 @@ export const useWeddingStore = defineStore('wedding', {
     // A shared wedding, opened by guests via /<code>
     loadByCode(code) {
       return this.loadOnce(`code:${code}`, async () => {
+        // Signed in first, so owners can still preview their hidden invitations
+        await useAuthStore().waitUntilReady()
         const result = await fetchWeddingByCode(code)
-        if (!result) return null
+        if (!result || result.hidden) return result
         const planId = await fetchPlan(result.ownerId)
         const plan = getPlan(planId)
         if (!(await guestCanView(result, plan))) return { blocked: true }
@@ -109,8 +111,13 @@ export const useWeddingStore = defineStore('wedding', {
         return { ...result, config, plan: planId }
       })
     },
-    async saveById(id, uid) {
-      weddingCode.value = await saveWedding(id, uid, this.snapshot())
+    // keepVersions: how many earlier versions to keep (Plus), 0 for none
+    async saveById(id, uid, { keepVersions = 0 } = {}) {
+      weddingCode.value = await saveWedding(id, uid, this.snapshot(), null, { keepVersions })
+    },
+    // Puts an earlier version into the editor (unsaved until the next save)
+    restore(config) {
+      this.load({ ...clone(weddingConfig), ...config })
     },
   },
 })

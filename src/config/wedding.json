@@ -41,6 +41,7 @@
     ]
   },
   "hero": {
+    "template": "classic",
     "inviteLine": "You are invited to the wedding ceremony of",
     "backgroundImage": "/images/placeholder-background.svg",
     "dateText": "DD · MM · YYYY",
@@ -48,6 +49,7 @@
     "locationText": "VENUE NAME, CITY",
     "countdown": {
       "enabled": true,
+      "style": "classic",
       "target": "2027-06-12T10:00:00",
       "labels": {
         "days": "Days",
@@ -61,7 +63,7 @@
     "home": {
       "label": "Home",
       "shortLabel": "Home",
-      "icon": "fa-infinity"
+      "icon": "fa-house"
     },
     "events": {
       "label": "Events",

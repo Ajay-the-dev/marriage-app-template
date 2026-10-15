@@ -8,31 +8,55 @@ service cloud.firestore {
     // weddings/{weddingId}: an account can own many.
     // Weddings saved before multi-wedding support use the owner's uid as id.
     match /weddings/{weddingId} {
-      // Guests can open a single invitation by id
-      allow get: if true;
+      // Guests can open a single invitation by id, unless its owner has hidden it
+      allow get: if !resource.data.get('hidden', false)
+        || (request.auth != null && resource.data.ownerId == request.auth.uid);
       // Owners can list their own (the query must filter on ownerId)
       allow list: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
       allow create: if request.auth != null
         && validWedding(weddingId, request.auth.uid)
+        && validAgreement(request.resource.data.get('agreement', null))
         && withinLimits(request.resource.data.config, planLimits(request.auth.uid))
         && request.resource.data.get('uploads', 0) == 0;
 
       allow update: if request.auth != null
         && resource.data.ownerId == request.auth.uid
         && validWedding(weddingId, request.auth.uid)
+        // The signed agreement is a record; it can never change
+        && request.resource.data.get('agreement', null) == resource.data.get('agreement', null)
         // The code can never change once set
         && (resource.data.get('code', null) == null
             || resource.data.code == request.resource.data.code)
         && validUpdate(planLimits(request.auth.uid));
 
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+
+      // versions/{versionId}: Plus keeps the config as it was before each save.
+      // Owners can read and trim them; nobody can change one.
+      match /versions/{versionId} {
+        function ownsWedding() {
+          return request.auth != null
+            && get(/databases/$(database)/documents/weddings/$(weddingId)).data.ownerId == request.auth.uid;
+        }
+        allow read, delete: if ownsWedding();
+        allow create: if ownsWedding()
+          && isPlus(request.auth.uid)
+          && request.resource.data.keys().hasOnly(['config', 'savedAt'])
+          && request.resource.data.config is map
+          && request.resource.data.savedAt is timestamp;
+      }
+    }
+
+    function isPlus(uid) {
+      let planDoc = /databases/$(database)/documents/plans/$(uid);
+      return exists(planDoc) && get(planDoc).data.get('plan', '') == 'plus';
     }
 
     function validWedding(weddingId, uid) {
       let data = request.resource.data;
       let reserved = getAfter(/databases/$(database)/documents/codes/$(data.code)).data;
-      return data.keys().hasOnly(['ownerId', 'code', 'config', 'createdAt', 'updatedAt', 'uploads', 'locked'])
+      return data.keys().hasOnly(['ownerId', 'code', 'config', 'createdAt', 'updatedAt', 'uploads', 'locked', 'editLocked', 'hidden', 'agreement'])
         && data.ownerId == uid
         && data.config is map
         // The code must be reserved for this user and this wedding
@@ -41,14 +65,31 @@ service cloud.firestore {
         && reserved.get('weddingId', uid) == weddingId;
     }
 
+    // Every new invitation needs the current agreement, signed now.
+    // Keep the version in sync with src/config/agreement.js
+    function validAgreement(agreement) {
+      return agreement is map
+        && agreement.keys().hasOnly(['version', 'name', 'signedAt'])
+        && agreement.version == '2026-10-15.2'
+        && agreement.name is string
+        && agreement.name.trim().size() >= 2
+        && agreement.name.size() <= 100
+        && agreement.signedAt == request.time;
+    }
+
     function validUpdate(limits) {
       let before = resource.data;
       let after = request.resource.data;
       let configChanged = after.config != before.config;
       let uploadsBefore = before.get('uploads', 0);
       let uploadsAfter = after.get('uploads', 0);
-      // Content changes must fit the plan, and not while locked
-      return (!configChanged || (withinLimits(after.config, limits) && !before.get('locked', false)))
+      let frozen = before.get('locked', false) || before.get('editLocked', false);
+      // Content changes must fit the plan, and not while locked (by the plan or by the owner)
+      return (!configChanged || (withinLimits(after.config, limits) && !frozen))
+        // No new uploads while locked either
+        && (!frozen || uploadsAfter == uploadsBefore)
+        && after.get('editLocked', false) is bool
+        && after.get('hidden', false) is bool
         // The upload counter only goes up, and only up to the plan's limit
         && uploadsAfter >= uploadsBefore
         && (uploadsAfter == uploadsBefore || uploadsAfter <= limits.uploads);
@@ -56,9 +97,7 @@ service cloud.firestore {
 
     // Keep in sync with src/config/plans.js
     function planLimits(uid) {
-      let planDoc = /databases/$(database)/documents/plans/$(uid);
-      let plus = exists(planDoc) && get(planDoc).data.get('plan', '') == 'plus';
-      return plus
+      return isPlus(uid)
         ? { 'uploads': 100, 'events': 10, 'milestones': 25, 'gallery': 25, 'saveTheDate': 5 }
         : { 'uploads': 25, 'events': 3, 'milestones': 10, 'gallery': 4, 'saveTheDate': 2 };
     }
@@ -67,7 +106,26 @@ service cloud.firestore {
       return config.eventsPage.events.size() <= limits.events
         && config.storyPage.milestones.size() <= limits.milestones
         && config.momentsPage.images.size() <= limits.gallery
-        && config.saveTheDate.images.size() <= limits.saveTheDate;
+        && config.saveTheDate.images.size() <= limits.saveTheDate
+        && withinTextLimits(config);
+    }
+
+    // Longest text for fixed fields. Keep in sync with MAX_LENGTH in src/utils/validation.js
+    // (list items can't be checked here: rules have no loops)
+    function withinTextLimits(config) {
+      let groom = config.get('groom', {});
+      let bride = config.get('bride', {});
+      let site = config.get('site', {});
+      return groom.get('name', '').size() <= 60
+        && groom.get('shortName', '').size() <= 30
+        && groom.get('bio', '').size() <= 600
+        && bride.get('name', '').size() <= 60
+        && bride.get('shortName', '').size() <= 30
+        && bride.get('bio', '').size() <= 600
+        && config.get('hero', {}).get('inviteLine', '').size() <= 120
+        && site.get('title', '').size() <= 100
+        && site.get('monogram', '').size() <= 6
+        && site.get('shareMessage', '').size() <= 500;
     }
 
     // plans/{uid}: { plan: 'plus' }. Set by hand in the console; missing = Free.

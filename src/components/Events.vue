@@ -54,6 +54,7 @@
                   <a
                     :href="mapLink(event)"
                     target="_blank"
+                    rel="noopener noreferrer"
                     class="map-link"
                   >
                     <i class="fa-solid fa-map-location-dot"></i> {{ page.mapButtonLabel }}
@@ -71,13 +72,15 @@
 import Basic from "@/views/Basic.vue";
 import { computed } from "vue";
 import { useWeddingStore } from "@/stores/wedding";
+import { safeUrl } from "@/utils/validation";
 
 const wedding = useWeddingStore();
 const page = computed(() => wedding.eventsPage);
 const weddingEvents = computed(() => page.value.events);
 
+// A map link that isn't a plain web link falls back to searching the venue
 const mapLink = (event) =>
-  event.mapUrl || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(event.venue + " " + event.location);
+  safeUrl(event.mapUrl?.trim()) || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(event.venue + " " + event.location);
 </script>
 
 <style lang="scss" scoped>

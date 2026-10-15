@@ -1,11 +1,16 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, increment, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
-// weddings/{id}  = { ownerId, code, config, createdAt, updatedAt, uploads, locked }
+// weddings/{id}  = { ownerId, code, config, createdAt, updatedAt, uploads, locked, editLocked, hidden, agreement }
 //                  (an account can own many; uploads counts images uploaded to it;
-//                   locked = over the account's invitation limit)
+//                   locked = over the account's invitation limit;
+//                   editLocked = locked by the owner so it can't be edited by mistake;
+//                   hidden = hidden from guests by the owner (only the owner can read it);
+//                   agreement = { version, name, signedAt }, signed when it was created)
 // codes/{code}   = { uid, weddingId, createdAt }   (reserves the code so it stays unique)
 // views/{id}     = { count }                       (unique guest visitors)
+// weddings/{id}/versions/{versionId} = { config, savedAt }
+//                  (Plus: the config as it was before each save, newest few kept)
 // plans/{uid}    = { plan: 'plus', since, source } (set by the Ko-fi webhook or by hand; missing means Free)
 // Weddings saved before multi-wedding support use the owner's uid as their id,
 // and their codes have no weddingId.
@@ -13,6 +18,7 @@ const weddingRef = (id) => doc(db, 'weddings', id)
 const codeRef = (code) => doc(db, 'codes', code)
 const viewsRef = (id) => doc(db, 'views', id)
 const planRef = (uid) => doc(db, 'plans', uid)
+const versionsRef = (id) => collection(db, 'weddings', id, 'versions')
 
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 const CODE_LENGTH = 12
@@ -43,6 +49,8 @@ const toWedding = (id, data) => ({
   updatedAt: data.updatedAt?.toDate() ?? null,
   uploads: data.uploads ?? 0,
   locked: !!data.locked,
+  editLocked: !!data.editLocked,
+  hidden: !!data.hidden,
 })
 
 // Returns the wedding, or null if there is no such wedding
@@ -83,26 +91,64 @@ export const setLocked = (id, locked) => {
   return updateDoc(weddingRef(id), { locked })
 }
 
-// Creates a wedding from the given config and returns its id
-export const createWedding = async (uid, config) => {
+// The owner's own lock: the invitation stays live for guests but can't be edited
+export const setEditLocked = (id, editLocked) => {
   requireDb()
+  return updateDoc(weddingRef(id), { editLocked })
+}
+
+// Hidden invitations show guests a "hidden" page instead of the invitation
+export const setHidden = (id, hidden) => {
+  requireDb()
+  return updateDoc(weddingRef(id), { hidden })
+}
+
+// Creates a wedding from the given config and returns its id.
+// agreement = { version, name } the owner signed for this wedding.
+export const createWedding = async (uid, config, agreement) => {
+  requireDb()
+  if (!agreement?.version || !agreement?.name) throw new Error('Please sign the agreement first')
   const id = doc(collection(db, 'weddings')).id
-  await saveWedding(id, uid, config)
+  await saveWedding(id, uid, config, agreement)
   return id
 }
 
-export const deleteWedding = (id) => {
+export const deleteWedding = async (id) => {
   requireDb()
-  return deleteDoc(weddingRef(id))
+  // Versions first: the rules check ownership through the wedding itself
+  const versions = await getDocs(versionsRef(id))
+  await Promise.all(versions.docs.map((d) => deleteDoc(d.ref)))
+  await deleteDoc(weddingRef(id))
 }
 
-// Looks up a shared wedding by its code. Returns { id, ownerId, config, code } or null.
+// Earlier saved versions of a wedding, newest first: [{ id, config, savedAt }]
+export const listVersions = async (id) => {
+  requireDb()
+  const snap = await getDocs(query(versionsRef(id), orderBy('savedAt', 'desc')))
+  return snap.docs.map((d) => ({ id: d.id, config: d.data().config, savedAt: d.data().savedAt?.toDate() ?? null }))
+}
+
+// Deletes all but the newest `keep` versions
+const pruneVersions = async (id, keep) => {
+  const versions = await listVersions(id)
+  await Promise.all(versions.slice(keep).map((v) => deleteDoc(doc(versionsRef(id), v.id))))
+}
+
+// Looks up a shared wedding by its code. Returns { id, ownerId, config, code },
+// { hidden: true } when its owner has hidden it from guests, or null.
 export const fetchWeddingByCode = async (code) => {
   requireDb()
   const reserved = await getDoc(codeRef(code))
   if (!reserved.exists()) return null
   const { weddingId, uid } = reserved.data()
-  const wedding = await fetchWedding(weddingId ?? uid)
+  let wedding
+  try {
+    wedding = await fetchWedding(weddingId ?? uid)
+  } catch (error) {
+    // The rules only refuse to show a wedding to guests when it's hidden
+    if (error.code === 'permission-denied') return { hidden: true }
+    throw error
+  }
   return wedding?.config ? wedding : null
 }
 
@@ -132,11 +178,12 @@ export const fetchViewCounts = async (ids) => {
   return Object.fromEntries(snaps.map((snap, i) => [ids[i], snap.data()?.count ?? 0]))
 }
 
-// Saves the config; on the first save also reserves a unique code.
-// Returns the wedding's code.
-export const saveWedding = (id, uid, config) => {
+// Saves the config; on the first save also reserves a unique code and
+// records the signed agreement. With keepVersions > 0 (Plus), the config being
+// replaced is kept as a version, up to that many. Returns the wedding's code.
+export const saveWedding = async (id, uid, config, agreement = null, { keepVersions = 0 } = {}) => {
   requireDb()
-  return runTransaction(db, async (tx) => {
+  const code = await runTransaction(db, async (tx) => {
     const existing = await tx.get(weddingRef(id))
     let code = existing.exists() ? existing.data().code : null
 
@@ -151,11 +198,27 @@ export const saveWedding = (id, uid, config) => {
 
     const fields = { ownerId: uid, code, config, updatedAt: serverTimestamp() }
     if (existing.exists()) {
-      // Leave createdAt, uploads and locked as they are
+      const previous = existing.data()
+      if (keepVersions > 0 && previous.config) {
+        tx.set(doc(versionsRef(id)), { config: previous.config, savedAt: previous.updatedAt ?? serverTimestamp() })
+      }
+      // Leave createdAt, uploads, locked, editLocked, hidden and agreement as they are
       tx.set(weddingRef(id), fields, { mergeFields: Object.keys(fields) })
     } else {
-      tx.set(weddingRef(id), { ...fields, createdAt: serverTimestamp(), uploads: 0, locked: false })
+      if (!agreement) throw new Error('Please sign the agreement first')
+      tx.set(weddingRef(id), {
+        ...fields,
+        createdAt: serverTimestamp(),
+        uploads: 0,
+        locked: false,
+        agreement: { version: agreement.version, name: agreement.name, signedAt: serverTimestamp() },
+      })
     }
     return code
   })
+  // Trimming is housekeeping; the save already succeeded
+  if (keepVersions > 0) {
+    await pruneVersions(id, keepVersions).catch((error) => console.warn('Could not trim old versions:', error))
+  }
+  return code
 }

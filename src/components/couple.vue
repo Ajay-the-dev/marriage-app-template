@@ -26,7 +26,7 @@
             <div class="col-md-5 col-lg-4">
               <div class="couple-card" :class="`${person.key}-card`">
                 <div class="image-frame">
-                  <img :src="person.photo" :alt="person.roleLabel" class="couple-img" />
+                  <img :src="person.photo || PLACEHOLDER_PHOTO" :alt="person.roleLabel" class="couple-img" />
                   <span class="role-badge">{{ person.roleLabel }}</span>
                 </div>
 
@@ -37,8 +37,8 @@
                     {{ person.bio }}
                   </p>
 
-                  <div class="social-links mt-4" v-if="person.socials?.length">
-                    <a v-for="social in person.socials" :key="social.url" :href="social.url" target="_blank" class="social-icon">
+                  <div class="social-links mt-4" v-if="person.socials.length">
+                    <a v-for="social in person.socials" :key="social.url" :href="social.url" target="_blank" rel="noopener noreferrer" class="social-icon">
                       <i class="fa-brands" :class="`fa-${social.type}`"></i>
                     </a>
                   </div>
@@ -58,12 +58,19 @@
 import Basic from "@/views/Basic.vue";
 import { computed } from "vue";
 import { useWeddingStore } from "@/stores/wedding";
+import { PLACEHOLDER_PHOTO } from "@/config/blankWedding";
+import { safeUrl } from "@/utils/validation";
 
 const wedding = useWeddingStore();
 const page = computed(() => wedding.couplePage);
+// Social links that aren't plain web links are left out
+const withSafeSocials = (person) => ({
+  ...person,
+  socials: (person.socials || []).map((s) => ({ ...s, url: safeUrl(s.url?.trim()) })).filter((s) => s.url),
+});
 const partners = computed(() => [
-  { key: "groom", ...wedding.groom },
-  { key: "bride", ...wedding.bride },
+  { key: "groom", ...withSafeSocials(wedding.groom) },
+  { key: "bride", ...withSafeSocials(wedding.bride) },
 ]);
 </script>
 

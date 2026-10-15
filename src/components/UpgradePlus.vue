@@ -85,6 +85,7 @@ const rows = [
   { key: "saveTheDate", label: "Save-the-date images", icon: "fa-heart" },
   { key: "editNavigation", label: "Custom navigation", icon: "fa-compass" },
   { key: "hideBadge", label: "Remove “crafted by” badge", icon: "fa-signature" },
+  { key: "history", label: "Version history", icon: "fa-clock-rotate-left" },
 ];
 
 // Why the dialog was opened, shown as the intro line
@@ -98,6 +99,7 @@ const reasons = {
   saveTheDate: "Add more save-the-date photos.",
   editNavigation: "Make the menu your own with custom labels and icons.",
   hideBadge: "Remove the badge for a cleaner invitation.",
+  history: "Go back to any of your last 5 saved versions.",
 };
 const intro = computed(() => reasons[upgradeReason.value] || "Get more room for photos, events and guests.");
 
@@ -105,6 +107,7 @@ const format = (value, row) => {
   if (typeof value === "boolean") {
     return value ? '<i class="fa-solid fa-check yes"></i>' : '<i class="fa-solid fa-xmark no"></i>';
   }
+  if (row.key === "history") return value ? `Last ${value}` : '<i class="fa-solid fa-xmark no"></i>';
   return value === Infinity ? "Unlimited" : String(value);
 };
 

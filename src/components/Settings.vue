@@ -591,6 +591,53 @@
                 hidden
                 @change="uploadBackground"
               />
+              <label class="field overlay-field">
+                <span>
+                  Overlay darkness <strong>{{ overlayValue }}%</strong>
+                  <button
+                    v-if="typeof wedding.hero.overlayOpacity === 'number'"
+                    type="button"
+                    class="overlay-reset"
+                    :disabled="readOnly"
+                    @click.prevent="resetOverlay"
+                  >Reset</button>
+                </span>
+                <input v-model.number="overlayValue" type="range" min="0" max="100" step="5" :disabled="readOnly" />
+                <small>0% shows the photo clearly, 100% hides it behind the overlay colour</small>
+              </label>
+              <div v-for="p in heroColorPickers" :key="p.field" class="field overlay-field">
+                <span>{{ p.label }}</span>
+                <div class="overlay-swatches" role="radiogroup" :aria-label="p.label">
+                  <button
+                    v-for="r in p.roles"
+                    :key="r.id"
+                    type="button"
+                    role="radio"
+                    class="overlay-swatch"
+                    :class="{ selected: pickedColor(p) === r.id }"
+                    :aria-checked="pickedColor(p) === r.id"
+                    :title="r.label"
+                    :disabled="readOnly"
+                    :style="{ background: themeColors[r.id] }"
+                    @click="pickHeroColor(p, r.id)"
+                  ></button>
+                  <label
+                    class="overlay-swatch overlay-custom"
+                    :class="{ selected: isHexColor(wedding.hero[p.field]), disabled: readOnly }"
+                    title="Custom colour"
+                    :style="isHexColor(wedding.hero[p.field]) ? { background: wedding.hero[p.field] } : {}"
+                  >
+                    <i v-if="!isHexColor(wedding.hero[p.field])" class="fa-solid fa-eye-dropper"></i>
+                    <input
+                      type="color"
+                      :value="isHexColor(wedding.hero[p.field]) ? wedding.hero[p.field] : themeColors[p.roles[0].id]"
+                      :disabled="readOnly"
+                      @input="pickHeroColor(p, $event.target.value)"
+                    />
+                  </label>
+                </div>
+                <small>{{ p.hint }}</small>
+              </div>
             </div>
           </div>
 
@@ -1339,10 +1386,64 @@ const milestoneList = namedList(
 
 // Layouts for the home page hero (Home.vue renders each)
 const heroTemplates = [
-  { id: "classic", label: "Classic", icon: "fa-align-center", description: "Centered names over the full background" },
-  { id: "framed", label: "Framed", icon: "fa-square", description: "Details inside an ornate card" },
-  { id: "minimal", label: "Minimal", icon: "fa-minus", description: "Names on one line, details along the bottom" },
+  { id: "classic", label: "Classic", icon: "fa-align-center", description: "Centered names over the full background", overlay: 80 },
+  { id: "framed", label: "Framed", icon: "fa-square", description: "Details inside an ornate card", overlay: 36 },
+  { id: "minimal", label: "Minimal", icon: "fa-minus", description: "Names on one line, details along the bottom", overlay: 48 },
 ];
+
+// Darkness of the tint over the background image; unset follows the template's default
+const overlayDefault = computed(
+  () => (heroTemplates.find((t) => t.id === wedding.hero.template) || heroTemplates[0]).overlay,
+);
+const overlayValue = computed({
+  get: () => (typeof wedding.hero.overlayOpacity === "number" ? wedding.hero.overlayOpacity : overlayDefault.value),
+  set: (v) => (wedding.hero.overlayOpacity = Number(v)),
+});
+const resetOverlay = () => delete wedding.hero.overlayOpacity;
+
+// Overlay and text colours: a role from the current theme (stays in sync if the theme changes)
+// or a custom #hex. The first role is the theme default and clears the field.
+const heroColorPickers = [
+  {
+    field: "overlayColor",
+    label: "Overlay colour",
+    hint: "Light colours can make the text harder to read",
+    roles: [
+      { id: "overlay", label: "Theme default" },
+      { id: "dark", label: "Dark" },
+      { id: "text", label: "Text" },
+      { id: "shadow", label: "Shadow" },
+      { id: "gold-dark", label: "Accent deep" },
+      { id: "gold", label: "Accent" },
+      { id: "sage", label: "Muted" },
+      { id: "blush", label: "Blush" },
+      { id: "cream", label: "Cream" },
+    ],
+  },
+  {
+    field: "textColor",
+    label: "Text colour",
+    hint: "Names, date, time, place and countdown on the home page",
+    roles: [
+      { id: "gold", label: "Theme default" },
+      { id: "gold-light", label: "Accent light" },
+      { id: "card", label: "White" },
+      { id: "cream", label: "Cream" },
+      { id: "blush", label: "Blush" },
+      { id: "sage", label: "Muted" },
+      { id: "gold-dark", label: "Accent deep" },
+      { id: "text", label: "Text" },
+      { id: "dark", label: "Dark" },
+    ],
+  },
+];
+const themeColors = computed(() => getTheme(wedding.theme).colors);
+const isHexColor = (v) => /^#[0-9a-f]{6}$/i.test(v || "");
+const pickedColor = (p) => wedding.hero[p.field] || p.roles[0].id;
+const pickHeroColor = (p, id) => {
+  if (id === p.roles[0].id) delete wedding.hero[p.field];
+  else wedding.hero[p.field] = id;
+};
 
 // Countdown looks (Home.vue styles each); "off" hides it
 const countdownStyles = [
@@ -2877,6 +2978,52 @@ select.attention { border-color: var(--gold-dark) !important; }
   gap: 12px;
   align-items: flex-start;
   .field { width: 100%; }
+}
+
+.overlay-field {
+  input[type="range"] { width: 100%; accent-color: var(--gold); }
+  small { font-size: 0.7rem; color: var(--sage); }
+}
+
+.overlay-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.overlay-swatch {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.2s;
+
+  &.selected { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--gold); }
+  &:disabled, &.disabled { cursor: not-allowed; opacity: 0.5; }
+}
+
+.overlay-custom {
+  background: conic-gradient(#e66, #ec6, #6c6, #6ce, #66e, #c6e, #e66);
+  i { font-size: 0.7rem; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+  input { position: absolute; inset: 0; opacity: 0; cursor: inherit; width: 100%; height: 100%; }
+}
+
+.overlay-reset {
+  margin-left: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.75rem;
+  color: var(--gold-dark);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 :deep(.image-list-actions) {

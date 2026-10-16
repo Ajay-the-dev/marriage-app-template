@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8d5a3"/>
+      <stop offset="0.5" stop-color="#c9a96e"/>
+      <stop offset="1" stop-color="#9a7a45"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#1a1208"/>
+  <g fill="none" stroke="url(#gold)" stroke-width="4">
+    <circle cx="25" cy="38" r="13"/>
+    <circle cx="39" cy="38" r="13"/>
+    <!-- Bring the left ring over the right one at the bottom so they interlock -->
+    <path d="M35.65 45.46 A13 13 0 0 1 27.26 50.8" stroke="#1a1208" stroke-width="7"/>
+    <path d="M35.65 45.46 A13 13 0 0 1 27.26 50.8"/>
+  </g>
+  <path d="M25 11 L30.5 17.5 L25 24 L19.5 17.5 Z" fill="#e8d5a3" stroke="#9a7a45" stroke-width="1"/>
+  <path d="M19.5 17.5 H30.5 M25 11 L23 17.5 L25 24 L27 17.5 Z" fill="none" stroke="#9a7a45" stroke-width="0.8"/>
+</svg>

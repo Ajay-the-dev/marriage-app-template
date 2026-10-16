@@ -1,0 +1,219 @@
+{
+  "site": {
+    "title": "Mithun & Aiswarya — Wedding Invitation",
+    "monogram": "M&A"
+  },
+  "theme": "sapphire-night",
+  "groom": {
+    "name": "Mithun",
+    "shortName": "Mithun",
+    "roleLabel": "The Groom",
+    "photo": "/images/uploads/groom-1791892280215.jpg",
+    "parents": "Son of Mr. Mohanan A & Mrs. Vijaya S",
+    "bio": "A man of profound dedication who pours his heart into everything he touches, he speaks his love through loyal actions and is absolutely radiant with excitement for the beautiful future you are building together.",
+    "socials": [
+      {
+        "type": "instagram",
+        "url": "https://www.instagram.com/mithun_m_o_h_a_n?igsh=aWx0bGdmaDd1dm84&utm_source=qr"
+      },
+      {
+        "type": "whatsapp",
+        "url": "https://wa.me/8156892272"
+      },
+      {
+        "type": "facebook",
+        "url": ""
+      }
+    ]
+  },
+  "bride": {
+    "name": "Aiswarya Shaji",
+    "shortName": "Aiswarya",
+    "roleLabel": "The Bride",
+    "photo": "/images/uploads/bride-1791892330583.png",
+    "parents": "Daughter of Mr. Shaji Joseph & Mrs. Mini Shaji",
+    "bio": "A deeply thoughtful and gentle soul who brings immense comfort to those around her, she is a steady anchor, an incredible listener, and the greatest blessing you could ever ask to walk beside in this life.",
+    "socials": [
+      {
+        "type": "instagram",
+        "url": "https://www.instagram.com/aiswarya__shaji?igsh=bGw0cWRseXV2NHRk"
+      },
+      {
+        "type": "whatsapp",
+        "url": ""
+      }
+    ]
+  },
+  "hero": {
+    "inviteLine": "You are invited to the wedding ceremony of",
+    "backgroundImage": "/images/uploads/background-1791892958213.jpeg",
+    "dateText": "12 · 07 · 2026",
+    "timeText": "10 : 30 AM - 11 : 30 AM",
+    "locationText": "GREEN NEST KUMBALANGI, KOCHI",
+    "countdown": {
+      "enabled": true,
+      "target": "2026-07-12T10:30:00",
+      "labels": {
+        "days": "Days",
+        "hours": "Hrs",
+        "minutes": "Min",
+        "seconds": "Sec"
+      }
+    }
+  },
+  "navigation": {
+    "home": {
+      "label": "Home",
+      "shortLabel": "Home",
+      "icon": "fa-infinity"
+    },
+    "events": {
+      "label": "Events",
+      "shortLabel": "Events",
+      "icon": "fa-calendar-check"
+    },
+    "couple": {
+      "label": "The Couple",
+      "shortLabel": "Couple",
+      "icon": "fa-user-friends"
+    },
+    "moments": {
+      "label": "Moments",
+      "shortLabel": "Moments",
+      "icon": "fa-images"
+    },
+    "story": {
+      "label": "The Story",
+      "shortLabel": "Story",
+      "icon": "fa-heart"
+    }
+  },
+  "couplePage": {
+    "subTitle": "Meet the Couple",
+    "title": "Groom & Bride"
+  },
+  "eventsPage": {
+    "subTitle": "Join Our Celebrations",
+    "title": "The Wedding itinerary",
+    "mapButtonLabel": "View on Map",
+    "events": [
+      {
+        "name": "Haldi",
+        "day": "11",
+        "month": "July",
+        "time": "5:00 PM – 10:00 PM",
+        "venue": "Green Nest",
+        "location": "Kumbalangi",
+        "mapUrl": ""
+      },
+      {
+        "name": "Wedding",
+        "day": "12",
+        "month": "July",
+        "time": "10:30 AM – 11:30 AM",
+        "venue": "Green Nest",
+        "location": "Kumbalangi",
+        "mapUrl": ""
+      },
+      {
+        "name": "Reception 1",
+        "day": "14",
+        "month": "July",
+        "time": "11:00 AM – 3:00 PM",
+        "venue": "Grand Auditorium",
+        "location": "Chittur",
+        "mapUrl": ""
+      },
+      {
+        "name": "Reception 2",
+        "day": "16",
+        "month": "July",
+        "time": "5:30 PM – 9:00 PM",
+        "venue": "Parish Hall, St. Mary's Church",
+        "location": "Kalathoor",
+        "mapUrl": ""
+      }
+    ]
+  },
+  "storyPage": {
+    "subTitle": "How We Got Here",
+    "title": "Our Sweet Journey",
+    "yearLabel": "Year:",
+    "milestones": [
+      {
+        "name": "First Meet",
+        "day": "17",
+        "month": "June",
+        "year": "2019",
+        "note": "The beautiful day our paths crossed for the very first time."
+      },
+      {
+        "name": "Proposal",
+        "day": "15",
+        "month": "July",
+        "year": "2022",
+        "note": "A magical moment written in the stars."
+      },
+      {
+        "name": "We Said Yes",
+        "day": "22",
+        "month": "July",
+        "year": "2022",
+        "note": "Making promises to love each other for a lifetime."
+      },
+      {
+        "name": "Family Meet",
+        "day": "11",
+        "month": "May",
+        "year": "2025",
+        "note": "Two loving families coming together as one."
+      },
+      {
+        "name": "Official Pennukanal",
+        "day": "03",
+        "month": "Sept",
+        "year": "2025",
+        "note": "Sealing the beautiful traditional custom with blessings."
+      }
+    ]
+  },
+  "momentsPage": {
+    "subTitle": "Captured Moments",
+    "title": "Our Gallery",
+    "images": [
+      "/images/1.jpeg",
+      "/images/2.jpeg",
+      "/images/3.jpeg",
+      "/images/4.jpeg",
+      "/images/5.jpeg",
+      "/images/6.jpeg",
+      "/images/7.jpeg",
+      "/images/8.jpeg",
+      "/images/9.jpeg",
+      "/images/10.jpeg",
+      "/images/11.jpeg",
+      "/images/12.jpeg",
+      "/images/13.jpeg",
+      "/images/14.jpeg"
+    ]
+  },
+  "saveTheDate": {
+    "enabled": true,
+    "expiresAt": "2026-07-12T23:59:59",
+    "autoplayMs": 8000,
+    "images": [
+      "/save_the_date/1.jpeg",
+      "/save_the_date/2.jpeg",
+      "/save_the_date/3.jpeg",
+      "/save_the_date/4.jpeg",
+      "/save_the_date/5.jpeg",
+      "/save_the_date/6.jpeg",
+      "/save_the_date/7.jpeg",
+      "/save_the_date/8.jpeg",
+      "/save_the_date/9.jpeg",
+      "/save_the_date/10.jpeg",
+      "/save_the_date/11.jpeg",
+      "/save_the_date/12.jpeg"
+    ]
+  }
+}

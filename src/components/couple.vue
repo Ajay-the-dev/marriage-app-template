@@ -5,8 +5,8 @@
         
         <!-- Section Header -->
         <div class="text-center mb-5 header-block">
-          <span class="sub-title">Meet the Couple</span>
-          <h2 class="main-title">Groom & Bride</h2>
+          <span class="sub-title">{{ page.subTitle }}</span>
+          <h2 class="main-title">{{ page.title }}</h2>
           <div class="luxury-divider">
             <span class="line"></span>
             <i class="fa-solid fa-heart divider-icon"></i>
@@ -17,61 +17,39 @@
         <!-- Couple Cards Container -->
         <div class="row justify-content-center align-items-stretch g-4 couple-container">
           
-          <!-- Groom Column -->
-          <div class="col-md-5 col-lg-4">
-            <div class="couple-card groom-card">
-              <div class="image-frame">
-                <img src="/images/groom.jpeg" alt="The Groom" class="couple-img" />
-                <span class="role-badge">The Groom</span>
-              </div>
-              
-              <div class="profile-details text-center mt-4">
-                <h3 class="partner-name">Mithun</h3>
-                <span class="parent-names">Son of Mr. Mohanan A & Mrs. Vijaya S</span>
-                <p class="partner-bio mt-3">
-                  A man of profound dedication who pours his heart into everything he touches, he speaks his love through loyal actions and is absolutely radiant with excitement for the beautiful future you are building together.
-                </p>
-                
-                <div class="social-links mt-4">
-                  <a href="https://www.instagram.com/mithun_m_o_h_a_n?igsh=aWx0bGdmaDd1dm84&utm_source=qr" target="_blank" class="social-icon">
-                    <i class="fa-brands fa-instagram"></i>
-                  </a>
-                  <a href="https://wa.me/8156892272" target="_blank" class="social-icon">
-                    <i class="fa-brands fa-whatsapp"></i>
-                  </a>
+          <template v-for="(person, index) in partners" :key="person.key">
+            <!-- Decorative Ampersand -->
+            <div v-if="index > 0" class="col-md-1 d-none d-md-flex align-items-center justify-content-center ampersand-divider">
+              <span>&</span>
+            </div>
+
+            <div class="col-md-5 col-lg-4">
+              <div class="couple-card" :class="`${person.key}-card`">
+                <div class="image-frame">
+                  <img :src="person.photo || PLACEHOLDER_PHOTO" :alt="person.roleLabel" class="couple-img" />
+                  <span class="role-badge">{{ person.roleLabel }}</span>
+                </div>
+
+                <div class="profile-details text-center mt-4">
+                  <h3 class="partner-name">{{ person.name }}</h3>
+                  <span class="partner-profession" v-if="person.profession">{{ person.profession }}</span>
+                  <span class="parent-names" v-if="person.parents">{{ person.parents }}</span>
+                  <p class="partner-bio mt-3" v-if="person.bio">
+                    {{ person.bio }}
+                  </p>
+                  <ul class="partner-interests mt-3" v-if="person.interests?.length">
+                    <li v-for="interest in person.interests" :key="interest">{{ interest }}</li>
+                  </ul>
+
+                  <div class="social-links mt-4" v-if="person.socials.length">
+                    <a v-for="social in person.socials" :key="social.url" :href="social.url" target="_blank" rel="noopener noreferrer" class="social-icon">
+                      <i class="fa-brands" :class="`fa-${social.type}`"></i>
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- Decorative Ampersand -->
-          <div class="col-md-1 d-none d-md-flex align-items-center justify-content-center ampersand-divider">
-            <span>&</span>
-          </div>
-
-          <!-- Bride Column -->
-          <div class="col-md-5 col-lg-4">
-            <div class="couple-card bride-card">
-              <div class="image-frame">
-                <img src="/images/bride.jpeg" alt="The Bride" class="couple-img" />
-                <span class="role-badge">The Bride</span>
-              </div>
-              
-              <div class="profile-details text-center mt-4">
-                <h3 class="partner-name">Aiswarya Shaji</h3>
-                <span class="parent-names">Daughter of Mr. Shaji Joseph & Mrs. Mini Shaji</span>
-                <p class="partner-bio mt-3">
-                  A deeply thoughtful and gentle soul who brings immense comfort to those around her, she is a steady anchor, an incredible listener, and the greatest blessing you could ever ask to walk beside in this life.
-                </p>
-                
-                <div class="social-links mt-4">
-                  <a href="https://www.instagram.com/aiswarya__shaji?igsh=bGw0cWRseXV2NHRk" target="_blank" class="social-icon">
-                    <i class="fa-brands fa-instagram"></i>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
+          </template>
 
         </div>
 
@@ -82,13 +60,29 @@
 
 <script setup>
 import Basic from "@/views/Basic.vue";
+import { computed } from "vue";
+import { useWeddingStore } from "@/stores/wedding";
+import { PLACEHOLDER_PHOTO } from "@/config/blankWedding";
+import { safeUrl } from "@/utils/validation";
+
+const wedding = useWeddingStore();
+const page = computed(() => wedding.couplePage);
+// Social links that aren't plain web links are left out
+const withSafeSocials = (person) => ({
+  ...person,
+  socials: (person.socials || []).map((s) => ({ ...s, url: safeUrl(s.url?.trim()) })).filter((s) => s.url),
+});
+const partners = computed(() => [
+  { key: "groom", ...withSafeSocials(wedding.groom) },
+  { key: "bride", ...withSafeSocials(wedding.bride) },
+]);
 </script>
 
 <style lang="scss" scoped>
 .couple-section {
   background-color: var(--cream);
   color: var(--text);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   min-height: 100vh;
 }
 
@@ -99,14 +93,14 @@ import Basic from "@/views/Basic.vue";
   letter-spacing: 3px;
   color: var(--sage);
   font-weight: 600;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 }
 
 .main-title {
   color: var(--dark);
   font-size: clamp(1.6rem, 5vw, 2.4rem);
   margin-top: 8px;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-weight: 400;
 }
 
@@ -135,19 +129,19 @@ import Basic from "@/views/Basic.vue";
 }
 
 .couple-card {
-  background-color: #ffffff;
+  background-color: var(--card);
   border: 1px solid color-mix(in srgb, var(--gold-light) 35%, transparent);
   border-radius: 24px;
   padding: 24px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(61, 44, 20, 0.04);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 4%, transparent);
   transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.4s ease;
 
   &:hover {
     transform: translateY(-6px);
-    box-shadow: 0 15px 35px rgba(154, 122, 69, 0.12);
+    box-shadow: 0 15px 35px color-mix(in srgb, var(--gold-dark) 12%, transparent);
   }
 }
 
@@ -177,12 +171,12 @@ import Basic from "@/views/Basic.vue";
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(253, 246, 236, 0.9);
+  background-color: color-mix(in srgb, var(--cream) 90%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--gold);
   color: var(--dark);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -195,7 +189,7 @@ import Basic from "@/views/Basic.vue";
 
 /* ── Text details ── */
 .partner-name {
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-size: clamp(1.1rem, 3vw, 1.6rem);
   font-weight: 400;
   color: var(--gold-dark);
@@ -203,7 +197,7 @@ import Basic from "@/views/Basic.vue";
 }
 
 .parent-names {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-size: clamp(0.8rem, 2vw, 0.88rem);
   color: var(--sage);
   font-weight: 500;
@@ -211,8 +205,37 @@ import Basic from "@/views/Basic.vue";
   text-transform: none;
 }
 
+.partner-profession {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--font-serif);
+  font-size: clamp(0.78rem, 2vw, 0.85rem);
+  color: var(--gold-dark);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.partner-interests {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: 3px 12px;
+    border: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
+    border-radius: 20px;
+    font-family: var(--font-serif);
+    font-size: 0.78rem;
+    color: var(--text);
+  }
+}
+
 .partner-bio {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-size: clamp(0.88rem, 2vw, 0.95rem);
   line-height: 1.7;
   color: var(--text);
@@ -243,7 +266,7 @@ import Basic from "@/views/Basic.vue";
 
   &:hover {
     background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-dark) 100%);
-    color: var(--cream);
+    color: var(--on-accent);
     transform: scale(1.1);
   }
 }
@@ -252,7 +275,7 @@ import Basic from "@/views/Basic.vue";
 .ampersand-divider {
   font-size: 4rem;
   color: var(--gold-light);
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-style: italic;
   opacity: 0.6;
 }

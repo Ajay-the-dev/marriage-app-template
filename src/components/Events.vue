@@ -5,8 +5,8 @@
 
             <!-- Section Header -->
             <div class="text-center mb-5 header-block">
-              <span class="sub-title">Join Our Celebrations</span>
-              <h2 class="main-title">The Wedding itinerary</h2>
+              <span class="sub-title">{{ page.subTitle }}</span>
+              <h2 class="main-title">{{ page.title }}</h2>
               <div class="luxury-divider">
                 <span class="line"></span>
                 <i class="fa-solid fa-heart divider-icon"></i>
@@ -23,10 +23,13 @@
               >
                 <!-- Left: Number + date -->
                 <div class="event-meta">
-                  <span class="event-num">0{{ index + 1 }}</span>
+                  <span class="event-num">{{ String(index + 1).padStart(2, "0") }}</span>
                   <div class="event-date">
                     <span class="date-day">{{ event.day }}</span>
-                    <span class="date-month">{{ event.month }}</span>
+                    <span class="date-month">
+                      <span class="month-full">{{ event.month }}</span>
+                      <span class="month-short">{{ String(event.month || "").trim().slice(0, 3) }}</span>
+                    </span>
                   </div>
                 </div>
 
@@ -51,15 +54,43 @@
                     </div>
                   </div>
 
-                  <a
-                    :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(event.venue + ' ' + event.location)"
-                    target="_blank"
-                    class="map-link"
-                  >
-                    <i class="fa-solid fa-map-location-dot"></i> View on Map
-                  </a>
+                  <div class="event-actions">
+                    <a
+                      :href="mapLink(event)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="map-link"
+                    >
+                      <i class="fa-solid fa-map-location-dot"></i> {{ page.mapButtonLabel }}
+                    </a>
+
+                    <!-- Add to calendar: only for events with an exact date -->
+                    <details v-if="entries[index]" class="calendar-menu">
+                      <summary class="map-link">
+                        <i class="fa-regular fa-calendar-plus"></i> {{ page.calendarButtonLabel || "Add to Calendar" }}
+                      </summary>
+                      <div class="calendar-options">
+                        <a :href="googleCalendarUrl(entries[index])" target="_blank" rel="noopener noreferrer" @click="closeMenu">
+                          <i class="fa-brands fa-google"></i> Google Calendar
+                        </a>
+                        <a :href="outlookCalendarUrl(entries[index])" target="_blank" rel="noopener noreferrer" @click="closeMenu">
+                          <i class="fa-brands fa-microsoft"></i> Outlook
+                        </a>
+                        <button type="button" @click="closeMenu($event); downloadIcs([entries[index]], event.name)">
+                          <i class="fa-brands fa-apple"></i> Apple Calendar / other
+                        </button>
+                      </div>
+                    </details>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            <!-- Every dated event in one file -->
+            <div v-if="datedEntries.length > 1" class="text-center">
+              <button type="button" class="map-link" @click="downloadIcs(datedEntries, 'Wedding events')">
+                <i class="fa-regular fa-calendar-plus"></i> Add all events to calendar
+              </button>
             </div>
 
           </div>
@@ -68,50 +99,44 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
 import Basic from "@/views/Basic.vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
+import { useWeddingStore, weddingCode } from "@/stores/wedding";
+import { safeUrl } from "@/utils/validation";
+import { calendarEntry, downloadIcs, googleCalendarUrl, outlookCalendarUrl } from "@/utils/calendar";
 
-const weddingEvents = ref([
-  {
-    name: 'Haldi',
-    day: '11',
-    month: 'July',
-    time: '5:00 PM – 10:00 PM',
-    venue: 'Green Nest',
-    location: 'Kumbalangi'
-  },
-  {
-    name: 'Wedding',
-    day: '12',
-    month: 'July',
-    time: '10:30 AM – 11:30 AM',
-    venue: 'Green Nest',
-    location: 'Kumbalangi'
-  },
-  {
-    name: 'Reception 1',
-    day: '14',
-    month: 'July',
-    time: '11:00 AM – 3:00 PM',
-    venue: 'Grand Auditorium',
-    location: 'Chittur'
-  },
-  {
-    name: 'Reception 2',
-    day: '16',
-    month: 'July',
-    time: '5:30 PM – 9:00 PM',
-    venue: "Parish Hall, St. Mary's Church",
-    location: 'Kalathoor'
-  }
-]);
+const wedding = useWeddingStore();
+const page = computed(() => wedding.eventsPage);
+const weddingEvents = computed(() => page.value.events);
+
+// A map link that isn't a plain web link falls back to searching the venue
+const mapLink = (event) =>
+  safeUrl(event.mapUrl?.trim()) || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(event.venue + " " + event.location);
+
+// Calendar entry per event (null for events without an exact date)
+const inviteUrl = computed(() => (weddingCode.value ? `${window.location.origin}/${weddingCode.value}` : ""));
+const entries = computed(() => weddingEvents.value.map((event) => calendarEntry(event, wedding, inviteUrl.value)));
+const datedEntries = computed(() => entries.value.filter(Boolean));
+
+// Calendar menus close when an option is picked or on a click elsewhere
+const closeMenu = (e) => {
+  const menu = e.currentTarget.closest("details");
+  if (menu) menu.open = false;
+};
+const closeOtherMenus = (e) => {
+  document.querySelectorAll(".calendar-menu[open]").forEach((menu) => {
+    if (!menu.contains(e.target)) menu.open = false;
+  });
+};
+onMounted(() => document.addEventListener("click", closeOtherMenus));
+onBeforeUnmount(() => document.removeEventListener("click", closeOtherMenus));
 </script>
 
 <style lang="scss" scoped>
 .events-section {
   background-color: var(--cream);
   color: var(--text);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   min-height: 100vh;
 }
 
@@ -123,14 +148,14 @@ const weddingEvents = ref([
   letter-spacing: 3px;
   color: var(--sage);
   font-weight: 600;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 }
 
 .main-title {
   color: var(--dark);
   font-size: clamp(1.6rem, 5vw, 2.4rem);
   margin-top: 6px;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-weight: 400;
 }
 
@@ -180,7 +205,7 @@ const weddingEvents = ref([
   font-size: 0.65rem;
   letter-spacing: 2px;
   color: var(--gold-light);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -196,7 +221,7 @@ const weddingEvents = ref([
   font-weight: 700;
   color: var(--dark);
   line-height: 1;
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
 }
 
 .date-month {
@@ -204,9 +229,12 @@ const weddingEvents = ref([
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--gold-dark);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   font-weight: 600;
 }
+
+// Phones show the month as 3 letters (AUG)
+.month-short { display: none; }
 
 /* ── Connector column ── */
 .connector {
@@ -236,12 +264,12 @@ const weddingEvents = ref([
 
 /* ── Card ── */
 .event-card {
-  background: #fff;
+  background: var(--card);
   border: 1px solid color-mix(in srgb, var(--gold-light) 35%, transparent);
   border-radius: 16px;
   padding: 16px 18px 14px;
   margin-bottom: 28px;
-  box-shadow: 0 4px 18px rgba(61, 44, 20, 0.05);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--shadow) 5%, transparent);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   position: relative;
   overflow: hidden;
@@ -260,12 +288,12 @@ const weddingEvents = ref([
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 10px 30px rgba(154, 122, 69, 0.1);
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--gold-dark) 10%, transparent);
   }
 }
 
 .event-name {
-  font-family: 'Cinzel Decorative', cursive;
+  font-family: var(--font-display);
   font-size: clamp(0.95rem, 3vw, 1.15rem);
   font-weight: 400;
   color: var(--dark);
@@ -286,7 +314,7 @@ const weddingEvents = ref([
   font-size: clamp(0.78rem, 2.5vw, 0.88rem);
   color: var(--text);
   line-height: 1.4;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
 
   i {
     color: var(--gold-dark);
@@ -308,7 +336,7 @@ const weddingEvents = ref([
   align-items: center;
   gap: 6px;
   font-size: 0.75rem;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-serif);
   letter-spacing: 1.5px;
   text-transform: uppercase;
   font-weight: 600;
@@ -323,8 +351,79 @@ const weddingEvents = ref([
 
   &:hover {
     background-color: var(--gold-light);
-    color: var(--dark);
+    color: var(--on-accent);
     border-color: var(--gold-light);
+  }
+}
+
+button.map-link {
+  background: none;
+  cursor: pointer;
+}
+
+.event-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Add to calendar ── */
+// An open menu must not be clipped by its card or hidden under the next event
+.event-row:has(.calendar-menu[open]) {
+  position: relative;
+  z-index: 5;
+
+  .event-card { overflow: visible; }
+}
+
+.calendar-menu {
+  position: relative;
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker { display: none; }
+  }
+
+  &[open] summary {
+    background-color: var(--gold-light);
+    color: var(--on-accent);
+    border-color: var(--gold-light);
+  }
+}
+
+.calendar-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background-color: var(--cream);
+  border: 1px solid color-mix(in srgb, var(--gold-light) 50%, transparent);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--gold-dark) 15%, transparent);
+
+  a, button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font-family: var(--font-serif);
+    font-size: 0.85rem;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+
+    i { width: 16px; color: var(--gold-dark); }
+
+    &:hover { background-color: color-mix(in srgb, var(--gold-light) 25%, transparent); }
   }
 }
 
@@ -338,6 +437,9 @@ const weddingEvents = ref([
   .date-day {
     font-size: 1.2rem;
   }
+
+  .month-full { display: none; }
+  .month-short { display: inline; }
 
   .event-card {
     padding: 14px 14px 12px;

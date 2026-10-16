@@ -1,7 +1,7 @@
 <template>
     <Basic>
         <div class="hero-wrapper" :class="`tpl-${template}`">
-            <div class="brown-bg full-screen d-flex flex-column align-items-center hero-content" ref="heroContent">
+            <div class="brown-bg full-screen d-flex flex-column align-items-center hero-content" :style="overlayStyle" ref="heroContent">
               <div class="hero-inner">
                 <span class="fs-5 fst-italic mb-2 hero-invite">{{ hero.inviteLine }}</span>
                 <div class="hero-names">
@@ -77,6 +77,21 @@ const photoCredit = computed(() => unsplashCredit(hero.value.backgroundImage));
 // Layout picked in Settings; older invitations have none saved
 const TEMPLATES = ["classic", "framed", "minimal"];
 const template = computed(() => (TEMPLATES.includes(hero.value.template) ? hero.value.template : "classic"));
+// Overlay strength (0-100) and colour picked in Settings; unset keeps the template/theme defaults.
+// Colour is a theme role (follows theme changes) or a custom #hex.
+// Text colour works the same way and replaces both the accent and its soft tint.
+const COLOR_ROLES = ["overlay", "dark", "text", "shadow", "gold-dark", "gold", "gold-light", "sage", "blush", "cream", "card"];
+const heroColor = (c) => (COLOR_ROLES.includes(c) ? `var(--${c})` : /^#[0-9a-f]{6}$/i.test(c || "") ? c : null);
+const overlayStyle = computed(() => {
+  const style = {};
+  const n = hero.value.overlayOpacity;
+  if (typeof n === "number") style["--hero-overlay"] = `${Math.min(100, Math.max(0, n))}%`;
+  const overlay = heroColor(hero.value.overlayColor);
+  if (overlay) style["--hero-overlay-color"] = overlay;
+  const text = heroColor(hero.value.textColor);
+  if (text) style["--hero-text"] = style["--hero-text-soft"] = text;
+  return style;
+});
 
 const bgImage = ref(null);
 const heroContent = ref(null);
@@ -130,19 +145,22 @@ onBeforeUnmount(() => {
 .brown-bg {
     position: relative;
     overflow: hidden;
-    background-color: var(--overlay);
-    opacity: 0.8;
+    background-color: color-mix(in srgb, var(--hero-overlay-color, var(--overlay)) var(--hero-overlay, 80%), transparent);
     z-index: 1;
 }
 
+.hero-inner {
+    opacity: 0.8;
+}
+
 .brown-bg span {
-    color: var(--gold-light);
+    color: var(--hero-text-soft, var(--gold-light));
     opacity: 1;
     font-family: var(--font-serif);
 }
 
 .brown-bg h1 {
-    color: var(--gold);
+    color: var(--hero-text, var(--gold));
     opacity: 1;
     font-family: var(--font-display);
     font-size: 22pt;
@@ -150,7 +168,7 @@ onBeforeUnmount(() => {
 
 .hero-divider {
     width: 120px; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    background: linear-gradient(90deg, transparent, var(--hero-text, var(--gold)), transparent);
     margin: 0.5rem auto;
     opacity: 1;
 }
@@ -158,7 +176,7 @@ onBeforeUnmount(() => {
 .hero-date {
     font-family: 'Sans-serif', serif;
     font-size: clamp(1.25rem, 2.5vw, 1.5rem);
-    color: var(--gold-light);
+    color: var(--hero-text-soft, var(--gold-light));
     letter-spacing: 0.2em;
     margin-top: 0.5rem;
     opacity: 1;
@@ -167,7 +185,7 @@ onBeforeUnmount(() => {
 .hero-time {
     font-family: 'Sans-serif', serif;
     font-size: clamp(1rem, 2.5vw, 1.5rem);
-    color: var(--gold-light);
+    color: var(--hero-text-soft, var(--gold-light));
     letter-spacing: 0.2em;
     margin-top: 0.5rem;
     opacity: 1;
@@ -176,7 +194,7 @@ onBeforeUnmount(() => {
 .hero-location {
     font-family: 'Sans-serif', serif;
     font-size: clamp(0.875rem, 2.5vw, 1.5rem);
-    color: var(--gold-light);
+    color: var(--hero-text-soft, var(--gold-light));
     letter-spacing: 0.2em;
     margin-top: 0.5rem;
     opacity: 1;
@@ -188,7 +206,7 @@ onBeforeUnmount(() => {
     gap: 1.25rem;
     margin-top: 1.25rem;
     padding-top: 0.75rem;
-    border-top: 1px solid color-mix(in srgb, var(--gold) 30%, transparent); /* subtle gold divider */
+    border-top: 1px solid color-mix(in srgb, var(--hero-text, var(--gold)) 30%, transparent); /* subtle gold divider */
 }
 
 .countdown-item {
@@ -201,7 +219,7 @@ onBeforeUnmount(() => {
 .countdown-number {
     font-family: var(--font-serif);
     font-size: clamp(1.1rem, 3vw, 1.6rem);
-    color: var(--gold);
+    color: var(--hero-text, var(--gold));
     line-height: 1;
     font-weight: 600;
 }
@@ -209,7 +227,7 @@ onBeforeUnmount(() => {
 .countdown-label {
     font-size: 0.6rem;
     letter-spacing: 0.15em;
-    color: var(--gold-light);
+    color: var(--hero-text-soft, var(--gold-light));
     text-transform: uppercase;
     margin-top: 0.2rem;
     opacity: 0.85;
@@ -225,16 +243,16 @@ onBeforeUnmount(() => {
 .cd-boxes .countdown-item {
     min-width: 3.75rem;
     padding: 0.6rem 0.5rem 0.5rem;
-    border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--hero-text, var(--gold)) 55%, transparent);
     border-radius: 10px;
-    background-color: color-mix(in srgb, var(--gold) 10%, transparent);
+    background-color: color-mix(in srgb, var(--hero-text, var(--gold)) 10%, transparent);
 }
 
 .cd-circles .countdown-item {
     width: 4.25rem;
     height: 4.25rem;
     justify-content: center;
-    border: 2px solid var(--gold);
+    border: 2px solid var(--hero-text, var(--gold));
     border-radius: 50%;
 }
 
@@ -259,7 +277,7 @@ onBeforeUnmount(() => {
 .cd-inline .countdown-item + .countdown-item::before {
     content: "·";
     margin: 0 0.6rem;
-    color: var(--gold);
+    color: var(--hero-text, var(--gold));
 }
 
 .cd-inline .countdown-number {
@@ -283,9 +301,9 @@ onBeforeUnmount(() => {
     background: none;
     cursor: pointer;
     padding: 0.6rem 1.4rem;
-    border: 1px solid var(--gold);
+    border: 1px solid var(--hero-text, var(--gold));
     border-radius: 999px;
-    color: var(--gold-light);
+    color: var(--hero-text-soft, var(--gold-light));
     font-family: var(--font-serif);
     letter-spacing: 0.1em;
     text-decoration: none;
@@ -293,7 +311,7 @@ onBeforeUnmount(() => {
 }
 
 .hero-create:hover {
-    background-color: var(--gold);
+    background-color: var(--hero-text, var(--gold));
     color: var(--dark);
 }
 
@@ -357,25 +375,25 @@ onBeforeUnmount(() => {
 .tpl-framed .hero-content {
     justify-content: center;
     padding: 1.5rem;
-    background-color: color-mix(in srgb, var(--overlay) 45%, transparent);
+    background-color: color-mix(in srgb, var(--hero-overlay-color, var(--overlay)) var(--hero-overlay, 36%), transparent);
 }
 
 .tpl-framed .hero-inner {
     padding: 2.5rem 2rem;
     max-width: 34rem;
     width: 100%;
-    border: 3px double var(--gold);
-    outline: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
+    border: 3px double var(--hero-text, var(--gold));
+    outline: 1px solid color-mix(in srgb, var(--hero-text, var(--gold)) 50%, transparent);
     outline-offset: 8px;
     border-radius: 4px;
-    background-color: var(--overlay);
+    background-color: var(--hero-overlay-color, var(--overlay));
 }
 
 /* ── Minimal: names on one line, details along the bottom ── */
 .tpl-minimal .hero-content {
     justify-content: center;
     padding: 2rem 1rem 0;
-    background-color: color-mix(in srgb, var(--overlay) 60%, transparent);
+    background-color: color-mix(in srgb, var(--hero-overlay-color, var(--overlay)) var(--hero-overlay, 48%), transparent);
 }
 
 .tpl-minimal .hero-names {
@@ -404,7 +422,7 @@ onBeforeUnmount(() => {
     justify-content: center;
     gap: 0.25rem 2rem;
     padding: 1rem;
-    border-top: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--hero-text, var(--gold)) 30%, transparent);
 }
 
 .tpl-minimal .hero-details > div {

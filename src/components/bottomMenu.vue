@@ -18,11 +18,11 @@
     </div>
   </header>
 
-  <!-- Mobile Floating Menu (Unchanged) -->
+  <!-- Mobile Floating Menu -->
   <nav class="floating-menu-container d-md-none">
     <div class="floating-menu">
       <template v-for="(item, index) in mobileItems" :key="item.to">
-        <button v-if="index === 2" @click="handleCenterAction" class="menu-item center-action-btn">
+        <button v-if="hasStory && index === 2" @click="handleCenterAction" class="menu-item center-action-btn">
           <div class="action-circle">
             <span class="action-button-text">{{ monogram }}</span>
           </div>
@@ -57,6 +57,11 @@ const monogram = computed(() => {
   return g && b ? `${g}&${b}` : g || b;
 });
 
+// A milestone counts once it has a date or a note; a row with only a preset name isn't a story yet
+const hasStory = computed(() =>
+  (wedding.storyPage?.milestones || []).some((m) => [m.day, m.month, m.year, m.note].some((v) => String(v ?? "").trim())),
+);
+
 const desktopItems = computed(() => {
   const nav = wedding.navigation;
   return [
@@ -64,11 +69,14 @@ const desktopItems = computed(() => {
     { to: `${base.value}/events`, ...nav.events },
     { to: `${base.value}/couple`, ...nav.couple },
     { to: `${base.value}/moments`, ...nav.moments },
-    { to: `${base.value}/story`, ...nav.story },
-  ];
+    hasStory.value && { to: `${base.value}/story`, ...nav.story },
+  ].filter(Boolean);
 });
-// The couple page is reached via the centre monogram button on mobile
-const mobileItems = computed(() => desktopItems.value.filter((item) => !item.to.endsWith("/couple")));
+// With a story: Couple sits behind the centre monogram button (4 links + monogram).
+// Without one: Couple is a plain link like the rest (4 links, no monogram).
+const mobileItems = computed(() =>
+  hasStory.value ? desktopItems.value.filter((item) => !item.to.endsWith("/couple")) : desktopItems.value,
+);
 
 const handleCenterAction = () => router.push(`${base.value}/couple`);
 </script>
@@ -206,10 +214,13 @@ const handleCenterAction = () => router.push(`${base.value}/couple`);
     text-transform: uppercase;
   }
 
-  &:hover {
-    opacity: 1;
-    color: var(--dark);
-    .menu-icon { transform: translateY(-2px); }
+  /* Mouse only: on touch screens :hover sticks to the last tapped item */
+  @media (hover: hover) {
+    &:hover {
+      opacity: 1;
+      color: var(--dark);
+      .menu-icon { transform: translateY(-2px); }
+    }
   }
 
   &.active {
@@ -237,9 +248,11 @@ const handleCenterAction = () => router.push(`${base.value}/couple`);
     transition: all 0.25s ease;
   }
 
-  &:hover .action-circle {
-    transform: scale(1.08) translateY(-3px);
-    box-shadow: 0 8px 20px color-mix(in srgb, var(--gold-dark) 50%, transparent);
+  @media (hover: hover) {
+    &:hover .action-circle {
+      transform: scale(1.08) translateY(-3px);
+      box-shadow: 0 8px 20px color-mix(in srgb, var(--gold-dark) 50%, transparent);
+    }
   }
 }
 

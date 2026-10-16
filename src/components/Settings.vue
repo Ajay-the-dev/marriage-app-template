@@ -46,6 +46,13 @@
             <button class="btn-ghost" @click="openHistory" :disabled="lastSaved === null" title="Earlier saved versions">
               <i class="fa-solid" :class="limits.history ? 'fa-clock-rotate-left' : 'fa-lock'"></i><span>History</span>
             </button>
+            <router-link
+              :to="{ name: 'traditional', query: { id: $route.params.id } }"
+              class="btn-ghost"
+              title="Design a printed invitation card and download it as a PDF (starts from the saved details)"
+            >
+              <i class="fa-solid fa-file-pdf"></i><span>Print card</span>
+            </router-link>
             <template v-if="showImportExport">
             <button class="btn-ghost" @click="importInput.click()" :disabled="lastSaved === null || readOnly" title="Import a JSON file">
               <i class="fa-solid fa-file-import"></i><span>Import</span>

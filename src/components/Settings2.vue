@@ -26,6 +26,9 @@
         <button v-if="lastSaved !== null" type="button" class="m-icon" aria-label="Version history" @click="openHistory">
           <i class="fa-solid" :class="limits.history ? 'fa-clock-rotate-left' : 'fa-lock'"></i>
         </button>
+        <router-link v-if="lastSaved !== null" :to="{ name: 'traditional-mobile', query: { id: weddingId } }" class="m-icon" aria-label="Printed card">
+          <i class="fa-solid fa-file-pdf"></i>
+        </router-link>
         <button v-if="shareLink" type="button" class="m-icon" aria-label="Share guest link" @click="share">
           <i class="fa-solid" :class="codeCopied ? 'fa-check' : 'fa-share-nodes'"></i>
         </button>

@@ -132,6 +132,9 @@
                 <i class="fa-solid fa-arrow-up-right-from-square"></i>Open guest view
               </a>
             </template>
+            <router-link :to="{ name: 'traditional', query: { id: sheetFor.id } }" class="m-sheet-item">
+              <i class="fa-solid fa-file-pdf"></i>Printed invitation
+            </router-link>
             <router-link :to="{ name: 'edit-wedding', params: { id: sheetFor.id }, query: { view: 'desktop' } }" class="m-sheet-item">
               <i class="fa-solid fa-sliders"></i>Full editor
             </router-link>

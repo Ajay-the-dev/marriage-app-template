@@ -34,19 +34,46 @@ service cloud.firestore {
 
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
+      function ownsWedding() {
+        return request.auth != null
+          && get(/databases/$(database)/documents/weddings/$(weddingId)).data.ownerId == request.auth.uid;
+      }
+
       // versions/{versionId}: Plus keeps the config as it was before each save.
       // Owners can read and trim them; nobody can change one.
       match /versions/{versionId} {
-        function ownsWedding() {
-          return request.auth != null
-            && get(/databases/$(database)/documents/weddings/$(weddingId)).data.ownerId == request.auth.uid;
-        }
         allow read, delete: if ownsWedding();
         allow create: if ownsWedding()
           && isPlus(request.auth.uid)
           && request.resource.data.keys().hasOnly(['config', 'savedAt'])
           && request.resource.data.config is map
           && request.resource.data.savedAt is timestamp;
+      }
+
+      // cards/{cardId}: printed invitation cards, kept as HTML. Only the owner
+      // can see them, and not while the invitation is locked by the plan.
+      match /cards/{cardId} {
+        function canEdit() {
+          return ownsWedding()
+            && !get(/databases/$(database)/documents/weddings/$(weddingId)).data.get('locked', false);
+        }
+        function validCard() {
+          let card = request.resource.data;
+          return card.keys().hasOnly(['name', 'html', 'version', 'versions', 'paper', 'border', 'motif', 'theme', 'createdAt', 'updatedAt'])
+            && card.name is string && card.name.size() <= 60
+            && card.html is string && card.html.size() <= 100000
+            // The wording version shown, and the edited text of each version (one per version at most)
+            && card.get('version', '') is string && card.get('version', '').size() <= 30
+            && card.get('versions', {}) is map && card.get('versions', {}).size() <= 20
+            && card.paper is string && card.paper.size() <= 20
+            && card.border is string && card.border.size() <= 20
+            && card.motif is string && card.motif.size() <= 20
+            && card.theme is string && card.theme.size() <= 40
+            && card.updatedAt == request.time;
+        }
+        allow read, delete: if ownsWedding();
+        allow create: if canEdit() && validCard() && request.resource.data.createdAt == request.time;
+        allow update: if canEdit() && validCard() && request.resource.data.createdAt == resource.data.createdAt;
       }
     }
 

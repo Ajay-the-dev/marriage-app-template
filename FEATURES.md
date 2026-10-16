@@ -108,6 +108,27 @@ blank for planning which features stay free and which need Plus.
 | Slide interval | Seconds between images | FREE|
 | Images | Multi-file upload or paths; reorder/remove | FREE:2,PAID:5|
 
+## Printed invitation (`/traditional`)
+
+Opened from the invitations list (PDF button / "Printed invitation" on mobile) or the editor's
+"Print card" button (PDF icon in the mobile editor), as `/traditional?id=<invitation>`
+(`&card=<card>` opens a saved card). Phones get `/traditional/mobile` like the other editors.
+
+| Feature | Details | Tier |
+|---|---|---|
+| Traditional card layout | Starts from the invitation's names, parents lines and events | |
+| Wording versions | 16 pills at the top of the editor's toolbar (Classic, Traditional Hindu, Festive, Minimal, Romantic, Elegant, Old-world, Black-tie, Garden, Dreamy, Coastal, Cheerful, Rustic, Relaxed, Glam, Starlit) switch the card's text. Each version keeps its own edits (marked with a dot) and all are saved with the card; the PDF uses the version shown. New cards start on the version that suits the invitation's theme | |
+| Text editor | Edit directly on the card: Names / Heading / Label / Text / Small styles, font picker (theme fonts, script, classic, modern and Malayalam / Tamil / Hindi / Telugu / Kannada fonts; applies to the selection or the current line), bold, italic, underline, alignment, theme colours, ornament divider, undo/redo; pasted text comes in plain | |
+| Paper sizes | A5, 5 × 7 in, A4, Square | |
+| Borders | Temple (double frame with corner flourishes), double rule, minimal, none | |
+| Motifs | Lotus, mandala or none above the text | |
+| Colours & fonts | Any of the site themes, independent of the online invitation's theme | |
+| Fit warning | Shown when the text runs past the border | |
+| Download PDF | Print-ready at 300 dpi, at the chosen paper size | |
+| Phone editor | Version chips under the top bar, the card fitted to the screen; while typing, a formatting bar sits above the keyboard (style, font and colour open as chip rows); otherwise Design / Save / PDF along the bottom, with design (paper, border, motif, colours) and saved cards in bottom sheets | |
+| Saved cards | Saved with the invitation (as HTML, owner-only) and listed to reopen, rename or delete; several per invitation (eg. one per language), "Save as copy", Ctrl+S, unsaved-changes warnings; not while the invitation is locked by the plan | |
+| Reset text | Starts the version shown again from the invitation's details | |
+
 ## Guest-facing site
 
 | Feature | Details | Tier |

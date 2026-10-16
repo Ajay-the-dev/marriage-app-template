@@ -104,6 +104,9 @@
               >
                 <i class="fa-solid" :class="hidingId === w.id ? 'fa-spinner fa-spin' : w.hidden ? 'fa-eye' : 'fa-eye-slash'"></i>
               </button>
+              <router-link :to="{ name: 'traditional', query: { id: w.id } }" class="btn-ghost" title="Printed invitation (PDF)">
+                <i class="fa-solid fa-file-pdf"></i>
+              </router-link>
               <button v-if="w.code" class="btn-ghost" @click="copyLink(w)" title="Copy the invitation message with the guest link">
                 <i class="fa-solid" :class="copiedId === w.id ? 'fa-check' : 'fa-link'"></i>
               </button>

@@ -47,6 +47,16 @@
           </button>
 
           <article v-for="w in weddings" :key="w.id" class="wedding-card" :class="{ locked: w.locked }">
+            <router-link
+              :to="{ name: 'edit-wedding', params: { id: w.id } }"
+              class="btn-ghost corner-btn corner-left"
+              :title="w.locked || w.editLocked ? 'View' : 'Edit'"
+            >
+              <i class="fa-solid" :class="w.locked || w.editLocked ? 'fa-eye' : 'fa-pen'"></i>
+            </router-link>
+            <a v-if="w.code" class="btn-ghost corner-btn corner-right" :href="shareLink(w)" target="_blank" rel="noopener" title="Open guest view">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            </a>
             <router-link :to="{ name: 'edit-wedding', params: { id: w.id } }" class="card-main">
               <span class="monogram">{{ w.config.site?.monogram || '♥' }}</span>
               <h2>{{ coupleNames(w) }}</h2>
@@ -77,9 +87,6 @@
               </span>
             </router-link>
             <div class="card-actions">
-              <router-link :to="{ name: 'edit-wedding', params: { id: w.id } }" class="btn-ghost">
-                <i class="fa-solid" :class="w.locked || w.editLocked ? 'fa-eye' : 'fa-pen'"></i><span>{{ w.locked || w.editLocked ? 'View' : 'Edit' }}</span>
-              </router-link>
               <button
                 v-if="!w.locked"
                 class="btn-ghost"
@@ -97,14 +104,9 @@
               >
                 <i class="fa-solid" :class="hidingId === w.id ? 'fa-spinner fa-spin' : w.hidden ? 'fa-eye' : 'fa-eye-slash'"></i>
               </button>
-              <template v-if="w.code">
-                <button class="btn-ghost" @click="copyLink(w)" title="Copy the invitation message with the guest link">
-                  <i class="fa-solid" :class="copiedId === w.id ? 'fa-check' : 'fa-link'"></i>
-                </button>
-                <a class="btn-ghost" :href="shareLink(w)" target="_blank" rel="noopener" title="Open guest view">
-                  <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                </a>
-              </template>
+              <button v-if="w.code" class="btn-ghost" @click="copyLink(w)" title="Copy the invitation message with the guest link">
+                <i class="fa-solid" :class="copiedId === w.id ? 'fa-check' : 'fa-link'"></i>
+              </button>
               <button class="btn-ghost danger" @click="remove(w)" :disabled="deletingId === w.id" title="Delete">
                 <i class="fa-solid" :class="deletingId === w.id ? 'fa-spinner fa-spin' : 'fa-trash'"></i>
               </button>
@@ -574,6 +576,23 @@ onMounted(refresh);
   padding: 12px 16px;
   border-top: 1px solid color-mix(in srgb, var(--gold-light) 35%, transparent);
 
-  > :first-child { margin-right: auto; }
+  .danger { margin-left: auto; }
 }
+
+/* Edit (top left) and guest view (top right) */
+.wedding-card { position: relative; }
+
+.corner-btn {
+  position: absolute;
+  top: 10px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+  background: #fff;
+}
+
+.corner-left { left: 10px; }
+.corner-right { right: 10px; }
 </style>

@@ -9,6 +9,10 @@
     "shortName": "Groom",
     "roleLabel": "The Groom",
     "photo": "/images/placeholder-person.svg",
+    "profession": "",
+    "interests": [],
+    "father": "",
+    "mother": "",
     "parents": "Son of Mr. Father's Name & Mrs. Mother's Name",
     "bio": "A few words about the groom — what he loves, what makes him smile, and how excited he is for the journey ahead.",
     "socials": [
@@ -27,6 +31,10 @@
     "shortName": "Bride",
     "roleLabel": "The Bride",
     "photo": "/images/placeholder-person.svg",
+    "profession": "",
+    "interests": [],
+    "father": "",
+    "mother": "",
     "parents": "Daughter of Mr. Father's Name & Mrs. Mother's Name",
     "bio": "A few words about the bride — her passions, her warmth, and the joy she brings to everyone around her.",
     "socials": [
@@ -94,9 +102,14 @@
     "subTitle": "Join Our Celebrations",
     "title": "The Wedding itinerary",
     "mapButtonLabel": "View on Map",
+    "calendarButtonLabel": "Add to Calendar",
+    "timezone": "Asia/Kolkata",
     "events": [
       {
         "name": "Engagement",
+        "date": "2027-06-10",
+        "start": "18:00",
+        "end": "21:00",
         "day": "10",
         "month": "June",
         "time": "6:00 PM – 9:00 PM",
@@ -106,6 +119,9 @@
       },
       {
         "name": "Wedding",
+        "date": "2027-06-12",
+        "start": "10:00",
+        "end": "12:00",
         "day": "12",
         "month": "June",
         "time": "10:00 AM – 12:00 PM",
@@ -115,6 +131,9 @@
       },
       {
         "name": "Reception",
+        "date": "2027-06-12",
+        "start": "18:30",
+        "end": "22:00",
         "day": "12",
         "month": "June",
         "time": "6:30 PM – 10:00 PM",

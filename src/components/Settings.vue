@@ -1,5 +1,5 @@
 <template>
-  <Basic>
+  <Basic :class="{ 'has-preview': showPreview && previewDocked }">
     <section class="settings-section" @focusin="trackSection">
       <!-- Toolbar -->
       <header class="settings-toolbar">
@@ -64,6 +64,15 @@
             >
               <i class="fa-solid" :class="errorIssues.length ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'"></i>
               {{ shownIssues.length }} need{{ shownIssues.length === 1 ? 's' : '' }} attention
+            </button>
+            <button
+              v-if="canPreview"
+              class="btn-ghost"
+              :class="{ active: previewOpen }"
+              @click="previewOpen = !previewOpen"
+              :title="previewOpen ? 'Hide the live preview' : 'Show a live preview of the invitation'"
+            >
+              <i class="fa-solid fa-display"></i><span>Preview</span>
             </button>
             <button class="btn-primary" @click="save" :disabled="lastSaved === null || (!isDirty && weddingCode) || saving || readOnly || overList.length > 0">
               <i class="fa-solid fa-floppy-disk"></i><span>{{ saving ? 'Saving…' : 'Save' }}</span>
@@ -177,6 +186,15 @@
                 <i class="fa-solid" :class="uploading === key ? 'fa-spinner fa-spin' : 'fa-camera'"></i>
                 {{ uploading === key ? 'Uploading…' : 'Upload photo' }}
               </button>
+              <button
+                v-if="wedding[key].photo"
+                type="button"
+                class="btn-upload btn-clear"
+                :disabled="uploading === key"
+                @click="removeImage(wedding[key], 'photo', 'photo')"
+              >
+                <i class="fa-solid fa-trash"></i> Remove photo
+              </button>
               <input
                 :ref="(el) => (photoInputs[key] = el)"
                 type="file"
@@ -199,12 +217,55 @@
                 <span>Role label</span>
                 <input v-model="wedding[key].roleLabel" maxlength="30" :placeholder="`Eg: ${examples[key].roleLabel}`" />
               </label>
+              <label class="field">
+                <span>Profession / passion</span>
+                <input v-model="wedding[key].profession" maxlength="60" :list="`${key}-professions`" autocomplete="off" :placeholder="`Eg: ${examples[key].profession}`" />
+                <datalist :id="`${key}-professions`">
+                  <option v-for="job in PROFESSIONS" :key="job" :value="job" />
+                </datalist>
+              </label>
+              <label class="field">
+                <span>Father's name</span>
+                <input :value="wedding[key].father" @input="setParentName(key, wedding[key], 'father', $event.target.value)" maxlength="60" :placeholder="`Eg: ${examples[key].father}`" />
+              </label>
+              <label class="field">
+                <span>Mother's name</span>
+                <input :value="wedding[key].mother" @input="setParentName(key, wedding[key], 'mother', $event.target.value)" maxlength="60" :placeholder="`Eg: ${examples[key].mother}`" />
+              </label>
+              <div v-if="parentsSuggestions(key).length" class="span-2 note-suggestions" role="group" :aria-label="`Parents line suggestions for the ${key}`">
+                <span>Parents line suggestions</span>
+                <button
+                  v-for="text in parentsSuggestions(key)"
+                  :key="text"
+                  type="button"
+                  class="note-suggestion"
+                  :class="{ selected: wedding[key].parents === text }"
+                  :aria-pressed="wedding[key].parents === text"
+                  @click="wedding[key].parents = text"
+                >{{ text }}</button>
+              </div>
               <label class="field span-2">
-                <span>Parents line</span>
+                <span>Parents line <small class="field-hint">pick a suggestion or write your own</small></span>
                 <input v-model="wedding[key].parents" maxlength="150" :placeholder="`Eg: ${examples[key].parents}`" />
               </label>
+              <div class="field span-2">
+                <label :for="`${key}-interests`">Interests</label>
+                <InterestPills v-model="wedding[key].interests" :id="`${key}-interests`" :suggestions="INTERESTS" :max="MAX_INTERESTS" :placeholder="`Eg: ${examples[key].interests}`" />
+              </div>
+              <div v-if="bioSuggestions(wedding[key]).length" class="span-2 note-suggestions" role="group" :aria-label="`Bio suggestions for the ${key}`">
+                <span>Bio suggestions</span>
+                <button
+                  v-for="text in bioSuggestions(wedding[key])"
+                  :key="text"
+                  type="button"
+                  class="note-suggestion"
+                  :class="{ selected: wedding[key].bio === text }"
+                  :aria-pressed="wedding[key].bio === text"
+                  @click="wedding[key].bio = text"
+                >{{ text }}</button>
+              </div>
               <label class="field span-2">
-                <span>Bio</span>
+                <span>Bio <small class="field-hint">pick a suggestion or write your own</small></span>
                 <textarea v-model="wedding[key].bio" rows="4" maxlength="600" :id="`${key}-bio`" :class="issueClass(`${key}-bio`)" :placeholder="`Eg: ${examples[key].bio}`"></textarea>
                 <FieldIssue :for="`${key}-bio`" />
               </label>
@@ -322,6 +383,17 @@
               <span>Map button label</span>
               <input v-model="wedding.eventsPage.mapButtonLabel" maxlength="30" placeholder="Eg: View on Map" />
             </label>
+            <label class="field">
+              <span>Calendar button label</span>
+              <input v-model="wedding.eventsPage.calendarButtonLabel" maxlength="30" placeholder="Eg: Add to Calendar" />
+            </label>
+            <label class="field">
+              <span>Time zone of the events (for guests' calendars)</span>
+              <select v-model="wedding.eventsPage.timezone">
+                <option value="">Guest's own time zone</option>
+                <option v-for="tz in timeZones" :key="tz" :value="tz">{{ tz.replace(/_/g, ' ') }}</option>
+              </select>
+            </label>
             <div class="field span-2">
               <span>Events</span>
               <div class="template-pills" role="group" aria-label="Events">
@@ -373,22 +445,22 @@
                 />
                 <FieldIssue :for="`event-${i}-name`" />
               </label>
-              <label class="field">
-                <span>Day</span>
-                <input v-model.trim="event.day" inputmode="numeric" maxlength="2" :id="`event-${i}-day`" :class="issueClass(`event-${i}-day`)" placeholder="Eg: 12" />
-                <FieldIssue :for="`event-${i}-day`" />
+              <label class="field span-2">
+                <span>Date</span>
+                <input type="date" :value="event.date" :id="`event-${i}-date`" :class="issueClass(`event-${i}-date`)" @change="pickEventDate(event, $event.target.value)" />
+                <FieldIssue :for="`event-${i}-date`" />
               </label>
               <label class="field">
-                <span>Month</span>
-                <select v-model="event.month" :id="`event-${i}-month`" :class="issueClass(`event-${i}-month`)">
-                  <option value="" disabled>Choose a month</option>
-                  <option v-if="event.month && !MONTHS.includes(event.month)" :value="event.month">{{ event.month }}</option>
-                  <option v-for="m in MONTHS" :key="m" :value="m">{{ m }}</option>
-                </select>
-                <FieldIssue :for="`event-${i}-month`" />
+                <span>Starts (empty = all day)</span>
+                <input type="time" :value="event.start" :id="`event-${i}-start`" :class="issueClass(`event-${i}-start`)" @change="setEventTime(event, 'start', $event.target.value)" />
+                <FieldIssue :for="`event-${i}-start`" />
+              </label>
+              <label class="field">
+                <span>Ends (optional)</span>
+                <input type="time" :value="event.end" @change="setEventTime(event, 'end', $event.target.value)" />
               </label>
               <label class="field span-2">
-                <span>Time</span>
+                <span>Time shown to guests (filled from start & end)</span>
                 <input v-model="event.time" maxlength="40" placeholder="Eg: 10:00 AM – 12:00 PM" />
               </label>
               <label class="field">
@@ -502,6 +574,15 @@
               <button class="btn-upload" @click="photoInputs.background.click()" :disabled="uploading === 'background'">
                 <i class="fa-solid" :class="uploading === 'background' ? 'fa-spinner fa-spin' : 'fa-image'"></i>
                 {{ uploading === 'background' ? 'Uploading…' : 'Upload background' }}
+              </button>
+              <button
+                v-if="wedding.hero.backgroundImage"
+                type="button"
+                class="btn-upload btn-clear"
+                :disabled="uploading === 'background'"
+                @click="removeImage(wedding.hero, 'backgroundImage', 'background image')"
+              >
+                <i class="fa-solid fa-trash"></i> Remove background
               </button>
               <input
                 :ref="(el) => (photoInputs.background = el)"
@@ -919,7 +1000,7 @@
 
       <!-- Theme changed toast -->
       <Transition name="toast">
-        <div v-if="themeToast" class="theme-toast" role="status">
+        <div v-if="themeToast && !showPreview" class="theme-toast" role="status">
           <i class="fa-solid fa-palette toast-icon"></i>
           <div class="toast-text">
             <strong>{{ themeToast }} theme applied</strong>
@@ -932,7 +1013,59 @@
         </div>
       </Transition>
     </section>
+
+    <!-- Live preview (desktop): the site in a frame, fed the unsaved config -->
+    <div v-if="showPreview && !previewDocked" class="preview-backdrop" @click="previewOpen = false"></div>
+    <aside v-if="showPreview" class="live-preview" :class="{ overlay: !previewDocked }" aria-label="Live preview">
+      <div class="preview-bar">
+        <div class="preview-pages" role="tablist" aria-label="Preview page">
+          <button
+            v-for="p in previewPages"
+            :key="p.path"
+            type="button"
+            role="tab"
+            :aria-selected="previewPath === p.path"
+            :class="{ active: previewPath === p.path }"
+            @click="previewPick = p.path"
+          >{{ p.label }}</button>
+        </div>
+        <div class="preview-devices" role="radiogroup" aria-label="Preview size">
+          <button
+            v-for="d in previewDevices"
+            :key="d.id"
+            type="button"
+            role="radio"
+            :aria-checked="previewDevice === d.id"
+            :class="{ active: previewDevice === d.id }"
+            :title="d.label"
+            @click="previewDevice = d.id"
+          ><i class="fa-solid" :class="d.icon"></i></button>
+          <button type="button" title="Hide preview" @click="previewOpen = false"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <div ref="previewStage" class="preview-stage">
+        <div
+          class="preview-device"
+          :class="previewDevice"
+          :style="{ width: `${device.width * previewScale}px`, height: `${device.height * previewScale}px` }"
+        >
+          <iframe
+            ref="previewFrame"
+            :name="PREVIEW_FRAME_NAME"
+            :src="previewSrc"
+            title="Invitation preview"
+            :style="{ width: `${device.width}px`, height: `${device.height}px`, transform: `scale(${previewScale})` }"
+          ></iframe>
+        </div>
+      </div>
+      <p class="preview-note">
+        <template v-if="previewHasSample">Sample text and photos fill the empty fields here. Guests only see what you fill in.</template>
+        <template v-else>Unsaved changes show here as you type. Guests see them after you save.</template>
+      </p>
+    </aside>
+
     <VersionHistory v-model:open="historyOpen" :wedding-id="weddingId" :keep="limits.history" :read-only="readOnly" @restore="restoreVersion" />
+    <HeroSyncDialog :options="heroSync" @update="saveNow" @keep="saveNow()" @cancel="heroSync = null" />
   </Basic>
 </template>
 
@@ -940,6 +1073,7 @@
 import { ref, reactive, computed, h, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import Basic from "@/views/Basic.vue";
 import VersionHistory from "@/components/VersionHistory.vue";
+import HeroSyncDialog from "@/components/HeroSyncDialog.vue";
 import { useWeddingStore, weddingCode, weddingStatus, weddingMeta } from "@/stores/wedding";
 import { recordUpload, setEditLocked, setHidden } from "@/services/weddings";
 import { useMyPlan } from "@/composables/plan";
@@ -950,11 +1084,17 @@ import { uploadImage as uploadToCloudinary } from "@/services/cloudinary";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { themes, fontsUrl, getTheme } from "@/config/themes";
 import { PLACEHOLDER_PHOTO } from "@/config/blankWedding";
-import { validateWedding, MONTHS, SHORT_MONTHS } from "@/utils/validation";
+import { validateWedding, SHORT_MONTHS } from "@/utils/validation";
+import { localTimeZone, setEventDate, setEventTime, timeZoneOptions } from "@/utils/calendar";
 import { unsplashCredit } from "@/utils/unsplash";
 import { storyNoteSuggestions } from "@/config/storyNotes";
-import { eventSuggestions, suggestionValues } from "@/utils/eventSuggestions";
+import { eventSuggestions, heroSyncOptions, suggestionValues } from "@/utils/eventSuggestions";
 import { SOCIAL_TYPES, useSocialLinks } from "@/composables/socialLinks";
+import { parentsLineSuggestions, setParentName } from "@/utils/parentsLine";
+import { bioSuggestions, INTERESTS, MAX_INTERESTS, PROFESSIONS } from "@/utils/bioSuggestions";
+import InterestPills from "@/components/InterestPills.vue";
+import { isPreviewMessage, PREVIEW_CONFIG, PREVIEW_FRAME_NAME, PREVIEW_NAVIGATE, PREVIEW_READY, withSampleContent } from "@/utils/preview";
+import sampleWedding from "@/config/wedding.json";
 import { shareMessage, DEFAULT_SHARE_MESSAGE, SHARE_MESSAGE_SUGGESTIONS, SHARE_PLACEHOLDERS } from "@/utils/shareMessage";
 
 const wedding = useWeddingStore();
@@ -1175,7 +1315,13 @@ const namedList = (getList, names, getMax, blank) => {
   };
 };
 
-const blankEvent = (name = "") => ({ name, day: "", month: "", time: "", venue: "", location: "", mapUrl: "" });
+const blankEvent = (name = "") => ({ name, date: "", start: "", end: "", day: "", month: "", time: "", venue: "", location: "", mapUrl: "" });
+// The first date picked also sets the time zone, to the couple's own
+const pickEventDate = (event, date) => {
+  setEventDate(event, date);
+  if (date && !wedding.eventsPage.timezone) wedding.eventsPage.timezone = localTimeZone();
+};
+const timeZones = computed(() => timeZoneOptions(wedding.eventsPage.timezone));
 const eventList = namedList(
   () => wedding.eventsPage.events,
   ["Engagement", "Haldi", "Mehendi", "Sangeet", "Marriage", "Reception"],
@@ -1221,6 +1367,10 @@ const examples = {
     name: "Arjun Kumar",
     shortName: "Arjun",
     roleLabel: "The Groom",
+    profession: "Software Engineer",
+    interests: "Cricket, Road trips",
+    father: "Ravi Kumar",
+    mother: "Lakshmi Kumar",
     parents: "Son of Mr. Ravi Kumar & Mrs. Lakshmi Kumar",
     bio: "A software engineer who loves cricket, road trips and filter coffee.",
   },
@@ -1228,10 +1378,15 @@ const examples = {
     name: "Meera Nair",
     shortName: "Meera",
     roleLabel: "The Bride",
+    profession: "Doctor",
+    interests: "Classical dance, Books",
+    father: "Suresh Nair",
+    mother: "Anjali Nair",
     parents: "Daughter of Mr. Suresh Nair & Mrs. Anjali Nair",
     bio: "A doctor with a love for classical dance, books and long walks by the beach.",
   },
 };
+const parentsSuggestions = (key) => parentsLineSuggestions(key, wedding[key].father, wedding[key].mother);
 const socialExamples = {
   instagram: "Eg: https://instagram.com/arjun",
   facebook: "Eg: https://facebook.com/arjun",
@@ -1313,6 +1468,11 @@ watch(
 const previewFonts = document.createElement("link");
 previewFonts.rel = "stylesheet";
 previewFonts.href = fontsUrl([...new Set(themes.flatMap((t) => t.googleFonts))]);
+
+// Clears a single image (the upload still counts towards the plan)
+const removeImage = (target, field, label) => {
+  if (confirm(`Remove this ${label}?`)) target[field] = "";
+};
 
 /* ── List helpers ── */
 const remove = (list, i) => list.splice(i, 1);
@@ -1484,6 +1644,25 @@ const save = async () => {
     flash(`Fix ${n} problem${n === 1 ? "" : "s"} before saving`, "error");
     jumpToIssue(errorIssues.value[0]);
     return;
+  }
+  // An event changed but the home page didn't follow: ask first
+  const options = heroSyncOptions(wedding.$state, lastSaved.value && JSON.parse(lastSaved.value));
+  if (options.length) {
+    heroSync.value = options;
+    return;
+  }
+  await saveNow();
+};
+
+// Changed events the popup offers for the home page: [{ event, changes }] (null when closed)
+const heroSync = ref(null);
+
+// Saves, first copying the chosen event's details to the home page
+const saveNow = async (changes = []) => {
+  heroSync.value = null;
+  for (const c of changes) {
+    if (c.key === "target") weddingDate.value = c.to;
+    else wedding.hero[c.key] = c.to;
   }
   saving.value = true;
   try {
@@ -1702,6 +1881,94 @@ const onScroll = () => {
   if (!spyFrame) spyFrame = requestAnimationFrame(spySections);
 };
 
+/* ── Live preview (desktop) ── */
+// Wide screens dock it beside the editor (open by default, remembered);
+// tablets slide it over the editor from the Preview button
+const wideQuery = window.matchMedia("(min-width: 1200px)");
+const tabletQuery = window.matchMedia("(min-width: 769px)");
+const previewDocked = ref(wideQuery.matches);
+const canPreview = ref(tabletQuery.matches);
+const PREVIEW_OPEN_KEY = "settingsPreview";
+const dockedPreviewPref = () => {
+  try { return localStorage.getItem(PREVIEW_OPEN_KEY) !== "off"; } catch { return true; }
+};
+const previewOpen = ref(previewDocked.value && dockedPreviewPref());
+const onWideChange = (e) => {
+  previewDocked.value = e.matches;
+  previewOpen.value = e.matches && dockedPreviewPref();
+};
+const onTabletChange = (e) => { canPreview.value = e.matches; };
+watch(previewOpen, (open) => {
+  if (!previewDocked.value) return;
+  try { localStorage.setItem(PREVIEW_OPEN_KEY, open ? "on" : "off"); } catch { /* not remembered */ }
+});
+const showPreview = computed(() => canPreview.value && previewOpen.value && lastSaved.value !== null);
+
+const previewPages = [
+  { path: "/", label: "Home" },
+  { path: "/couple", label: "Couple" },
+  { path: "/events", label: "Events" },
+  { path: "/story", label: "Story" },
+  { path: "/moments", label: "Moments" },
+];
+// The page the section being edited shows up on
+const SECTION_PAGES = { groom: "/couple", bride: "/couple", "couple-page": "/couple", events: "/events", story: "/story", moments: "/moments" };
+// A page picked in the preview bar, until the editor moves to another section
+const previewPick = ref(null);
+watch(activeSection, () => { previewPick.value = null; });
+const previewPath = computed(() => previewPick.value ?? SECTION_PAGES[activeSection.value] ?? "/");
+
+const previewDevices = [
+  { id: "phone", label: "Phone", icon: "fa-mobile-screen", width: 390, height: 844 },
+  { id: "desktop", label: "Desktop", icon: "fa-desktop", width: 1280, height: 800 },
+];
+const previewDevice = ref("phone");
+const device = computed(() => previewDevices.find((d) => d.id === previewDevice.value));
+
+// Scale the device to fit the panel
+const previewStage = ref(null);
+const stageSize = reactive({ width: 0, height: 0 });
+const previewScale = computed(() =>
+  Math.min(1, stageSize.width / device.value.width, stageSize.height / device.value.height) || 0);
+const stageObserver = new ResizeObserver(([entry]) => {
+  stageSize.width = entry.contentRect.width;
+  stageSize.height = entry.contentRect.height;
+});
+watch(previewStage, (el, old) => {
+  if (old) stageObserver.unobserve(old);
+  if (el) stageObserver.observe(el);
+});
+
+// The frame loads once; later page changes are sent to it
+const previewFrame = ref(null);
+const previewSrc = ref("/");
+watch(showPreview, (shown) => { if (shown) previewSrc.value = previewPath.value; });
+const postToPreview = (message) =>
+  previewFrame.value?.contentWindow?.postMessage(message, window.location.origin);
+// Empty fields show sample content in the preview, watermarked as such
+const sendPreviewConfig = () => {
+  const { config, filled } = withSampleContent(wedding.snapshot(), sampleWedding);
+  previewHasSample.value = filled;
+  postToPreview({ type: PREVIEW_CONFIG, config, plan: planId.value, sample: filled });
+};
+const previewHasSample = ref(false);
+let previewFrameReq = 0;
+watch(() => wedding.$state, () => {
+  if (!showPreview.value || previewFrameReq) return;
+  previewFrameReq = requestAnimationFrame(() => {
+    previewFrameReq = 0;
+    sendPreviewConfig();
+  });
+}, { deep: true });
+watch(planId, () => { if (showPreview.value) sendPreviewConfig(); });
+watch(previewPath, (path) => postToPreview({ type: PREVIEW_NAVIGATE, path }));
+const onPreviewMessage = (event) => {
+  if (!isPreviewMessage(event, previewFrame.value?.contentWindow)) return;
+  if (event.data.type !== PREVIEW_READY) return;
+  sendPreviewConfig();
+  postToPreview({ type: PREVIEW_NAVIGATE, path: previewPath.value });
+};
+
 // Warn before leaving with unsaved changes
 const beforeUnload = (e) => {
   if (isDirty.value) e.preventDefault();
@@ -1714,6 +1981,9 @@ onMounted(() => {
   window.addEventListener("beforeunload", beforeUnload);
   document.addEventListener("click", closeIconPicker);
   document.head.appendChild(previewFonts);
+  window.addEventListener("message", onPreviewMessage);
+  wideQuery.addEventListener("change", onWideChange);
+  tabletQuery.addEventListener("change", onTabletChange);
 });
 onBeforeUnmount(() => {
   window.removeEventListener("scroll", onScroll);
@@ -1723,6 +1993,11 @@ onBeforeUnmount(() => {
   document.removeEventListener("click", closeIconPicker);
   previewFonts.remove();
   clearTimeout(toastTimer);
+  window.removeEventListener("message", onPreviewMessage);
+  wideQuery.removeEventListener("change", onWideChange);
+  tabletQuery.removeEventListener("change", onTabletChange);
+  stageObserver.disconnect();
+  cancelAnimationFrame(previewFrameReq);
 });
 </script>
 
@@ -1741,6 +2016,136 @@ onBeforeUnmount(() => {
   font-family: 'Montserrat', sans-serif;
   min-height: 100vh;
   padding-bottom: 80px;
+}
+
+/* ── Live preview (desktop) ── */
+$preview-width: 440px;
+
+.full-screen.has-preview {
+  width: calc(100vw - #{$preview-width});
+}
+
+.btn-ghost.active {
+  background: var(--blush);
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.live-preview {
+  --gold: #c9a96e;
+  --gold-light: #e8d5a3;
+  --gold-dark: #9a7a45;
+  --cream: #fdf6ec;
+  --dark: #1a1208;
+  --text: #3d2c14;
+  --blush: #f5e6d8;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: $preview-width;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f3eadc;
+  border-left: 1px solid color-mix(in srgb, var(--gold-light) 70%, transparent);
+  font-family: 'Montserrat', sans-serif;
+  color: var(--text);
+}
+
+/* Tablets: slides over the editor instead of sitting beside it */
+.live-preview.overlay {
+  z-index: 40;
+  width: min(#{$preview-width}, calc(100vw - 80px));
+  box-shadow: -12px 0 40px rgba(26, 18, 8, 0.25);
+  animation: preview-in 0.25s ease;
+}
+
+.preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgba(26, 18, 8, 0.35);
+}
+
+@keyframes preview-in {
+  from { transform: translateX(100%); }
+}
+
+.preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  button {
+    border: 0;
+    background: none;
+    border-radius: 20px;
+    padding: 4px 9px;
+    font-size: 0.7rem;
+    color: var(--text);
+    opacity: 0.7;
+    cursor: pointer;
+    &:hover { opacity: 1; }
+    &.active {
+      opacity: 1;
+      color: var(--dark);
+      background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold-dark) 100%);
+    }
+  }
+}
+
+.preview-pages,
+.preview-devices {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 30px;
+  background: #fff;
+}
+
+.preview-pages button {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.preview-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-device {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 0 0 6px var(--dark), 0 12px 32px rgba(61, 44, 20, 0.25);
+  border-radius: 28px;
+
+  &.desktop {
+    border-radius: 8px;
+    box-shadow: 0 0 0 4px var(--dark), 0 12px 32px rgba(61, 44, 20, 0.25);
+  }
+
+  iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border: 0;
+    transform-origin: top left;
+  }
+}
+
+.preview-note {
+  margin: 0;
+  font-size: 0.7rem;
+  text-align: center;
+  color: var(--gold-dark);
 }
 
 .settings-loading {
@@ -2146,12 +2551,19 @@ onBeforeUnmount(() => {
 
 .span-2 { grid-column: span 2; }
 
+.field-hint {
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.7rem;
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 4px;
 
-  > span {
+  > span, > label {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -2482,6 +2894,7 @@ select.attention { border-color: var(--gold-dark) !important; }
   font-size: 0.78rem;
 }
 
+.btn-clear:hover:not(:disabled),
 :deep(.image-list-actions .btn-clear:hover:not(:disabled)) {
   background: #fbe9e7;
   color: #b3261e;

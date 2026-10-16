@@ -47,7 +47,15 @@ const route = useRoute();
 // Keep guests inside a shared invitation (/<code>/events, …)
 const base = computed(() => (route.params.code ? `/${route.params.code}` : ""));
 const wedding = useWeddingStore();
-const monogram = computed(() => wedding.site.monogram);
+// Falls back to the couple's initials (G&B with the sample names) until a monogram is set
+const initial = (person) => (person.shortName || person.name || "").trim().charAt(0).toUpperCase();
+const monogram = computed(() => {
+  const set = wedding.site.monogram?.trim();
+  if (set) return set;
+  const g = initial(wedding.groom);
+  const b = initial(wedding.bride);
+  return g && b ? `${g}&${b}` : g || b;
+});
 
 const desktopItems = computed(() => {
   const nav = wedding.navigation;
@@ -144,8 +152,8 @@ const handleCenterAction = () => router.push(`${base.value}/couple`);
 /* ── Mobile floating menu ── */
 .floating-menu-container {
   position: fixed;
-  bottom: calc(5vh + env(safe-area-inset-bottom, 0px));
-  bottom: calc(5dvh + env(safe-area-inset-bottom, 0px));
+  /* Fixed px offset: vh/dvh shift as the mobile address bar shows/hides */
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10000;

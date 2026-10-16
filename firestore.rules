@@ -9,7 +9,9 @@ service cloud.firestore {
     // Weddings saved before multi-wedding support use the owner's uid as id.
     match /weddings/{weddingId} {
       // Guests can open a single invitation by id, unless its owner has hidden it
-      allow get: if !resource.data.get('hidden', false)
+      // (resource is null for an id that doesn't exist yet: creating one reads it first)
+      allow get: if resource == null
+        || !resource.data.get('hidden', false)
         || (request.auth != null && resource.data.ownerId == request.auth.uid);
       // Owners can list their own (the query must filter on ownerId)
       allow list: if request.auth != null && resource.data.ownerId == request.auth.uid;

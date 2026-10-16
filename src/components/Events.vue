@@ -26,7 +26,10 @@
                   <span class="event-num">{{ String(index + 1).padStart(2, "0") }}</span>
                   <div class="event-date">
                     <span class="date-day">{{ event.day }}</span>
-                    <span class="date-month">{{ event.month }}</span>
+                    <span class="date-month">
+                      <span class="month-full">{{ event.month }}</span>
+                      <span class="month-short">{{ String(event.month || "").trim().slice(0, 3) }}</span>
+                    </span>
                   </div>
                 </div>
 
@@ -51,16 +54,43 @@
                     </div>
                   </div>
 
-                  <a
-                    :href="mapLink(event)"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="map-link"
-                  >
-                    <i class="fa-solid fa-map-location-dot"></i> {{ page.mapButtonLabel }}
-                  </a>
+                  <div class="event-actions">
+                    <a
+                      :href="mapLink(event)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="map-link"
+                    >
+                      <i class="fa-solid fa-map-location-dot"></i> {{ page.mapButtonLabel }}
+                    </a>
+
+                    <!-- Add to calendar: only for events with an exact date -->
+                    <details v-if="entries[index]" class="calendar-menu">
+                      <summary class="map-link">
+                        <i class="fa-regular fa-calendar-plus"></i> {{ page.calendarButtonLabel || "Add to Calendar" }}
+                      </summary>
+                      <div class="calendar-options">
+                        <a :href="googleCalendarUrl(entries[index])" target="_blank" rel="noopener noreferrer" @click="closeMenu">
+                          <i class="fa-brands fa-google"></i> Google Calendar
+                        </a>
+                        <a :href="outlookCalendarUrl(entries[index])" target="_blank" rel="noopener noreferrer" @click="closeMenu">
+                          <i class="fa-brands fa-microsoft"></i> Outlook
+                        </a>
+                        <button type="button" @click="closeMenu($event); downloadIcs([entries[index]], event.name)">
+                          <i class="fa-brands fa-apple"></i> Apple Calendar / other
+                        </button>
+                      </div>
+                    </details>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            <!-- Every dated event in one file -->
+            <div v-if="datedEntries.length > 1" class="text-center">
+              <button type="button" class="map-link" @click="downloadIcs(datedEntries, 'Wedding events')">
+                <i class="fa-regular fa-calendar-plus"></i> Add all events to calendar
+              </button>
             </div>
 
           </div>
@@ -70,9 +100,10 @@
 
 <script setup>
 import Basic from "@/views/Basic.vue";
-import { computed } from "vue";
-import { useWeddingStore } from "@/stores/wedding";
+import { computed, onBeforeUnmount, onMounted } from "vue";
+import { useWeddingStore, weddingCode } from "@/stores/wedding";
 import { safeUrl } from "@/utils/validation";
+import { calendarEntry, downloadIcs, googleCalendarUrl, outlookCalendarUrl } from "@/utils/calendar";
 
 const wedding = useWeddingStore();
 const page = computed(() => wedding.eventsPage);
@@ -81,6 +112,24 @@ const weddingEvents = computed(() => page.value.events);
 // A map link that isn't a plain web link falls back to searching the venue
 const mapLink = (event) =>
   safeUrl(event.mapUrl?.trim()) || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(event.venue + " " + event.location);
+
+// Calendar entry per event (null for events without an exact date)
+const inviteUrl = computed(() => (weddingCode.value ? `${window.location.origin}/${weddingCode.value}` : ""));
+const entries = computed(() => weddingEvents.value.map((event) => calendarEntry(event, wedding, inviteUrl.value)));
+const datedEntries = computed(() => entries.value.filter(Boolean));
+
+// Calendar menus close when an option is picked or on a click elsewhere
+const closeMenu = (e) => {
+  const menu = e.currentTarget.closest("details");
+  if (menu) menu.open = false;
+};
+const closeOtherMenus = (e) => {
+  document.querySelectorAll(".calendar-menu[open]").forEach((menu) => {
+    if (!menu.contains(e.target)) menu.open = false;
+  });
+};
+onMounted(() => document.addEventListener("click", closeOtherMenus));
+onBeforeUnmount(() => document.removeEventListener("click", closeOtherMenus));
 </script>
 
 <style lang="scss" scoped>
@@ -183,6 +232,9 @@ const mapLink = (event) =>
   font-family: var(--font-serif);
   font-weight: 600;
 }
+
+// Phones show the month as 3 letters (AUG)
+.month-short { display: none; }
 
 /* ── Connector column ── */
 .connector {
@@ -304,6 +356,77 @@ const mapLink = (event) =>
   }
 }
 
+button.map-link {
+  background: none;
+  cursor: pointer;
+}
+
+.event-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Add to calendar ── */
+// An open menu must not be clipped by its card or hidden under the next event
+.event-row:has(.calendar-menu[open]) {
+  position: relative;
+  z-index: 5;
+
+  .event-card { overflow: visible; }
+}
+
+.calendar-menu {
+  position: relative;
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker { display: none; }
+  }
+
+  &[open] summary {
+    background-color: var(--gold-light);
+    color: var(--on-accent);
+    border-color: var(--gold-light);
+  }
+}
+
+.calendar-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background-color: var(--cream);
+  border: 1px solid color-mix(in srgb, var(--gold-light) 50%, transparent);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--gold-dark) 15%, transparent);
+
+  a, button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font-family: var(--font-serif);
+    font-size: 0.85rem;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+
+    i { width: 16px; color: var(--gold-dark); }
+
+    &:hover { background-color: color-mix(in srgb, var(--gold-light) 25%, transparent); }
+  }
+}
+
 /* ── Mobile ── */
 @media (max-width: 480px) {
   .event-row {
@@ -314,6 +437,9 @@ const mapLink = (event) =>
   .date-day {
     font-size: 1.2rem;
   }
+
+  .month-full { display: none; }
+  .month-short { display: inline; }
 
   .event-card {
     padding: 14px 14px 12px;

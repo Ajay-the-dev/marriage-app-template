@@ -7,6 +7,7 @@ import couple from '../components/couple.vue'
 import { watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { demoActive, endDemo } from '@/stores/demo'
+import { isPreviewFrame } from '@/utils/preview'
 import { isMobileDevice, preferredSettingsView, setPreferredSettingsView } from '@/utils/device'
 
 // Invitation pages. They are served twice:
@@ -70,6 +71,8 @@ const router = createRouter({
 // which is remembered for the rest of the session.
 const MOBILE_ROUTES = { settings: 'settings-mobile', 'edit-wedding': 'edit-wedding-mobile' }
 router.beforeEach((to) => {
+  // The editor's live preview stays on the invitation pages
+  if (isPreviewFrame && to.meta.bare) return false
   if (to.query.view === 'desktop') {
     setPreferredSettingsView('desktop')
     const { view, ...query } = to.query

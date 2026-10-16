@@ -32,6 +32,7 @@ const matchesSocial = (type, url) => {
 export const MAX_LENGTH = {
   name: 60,
   shortName: 30,
+  profession: 60,
   bio: 600,
   inviteLine: 120,
   siteTitle: 100,
@@ -88,6 +89,7 @@ export const validateWedding = (config, now = Date.now()) => {
     required(`${key}-name`, person.name, `${who}'s name is missing`);
     checkLength(issues, `${key}-name`, person.name, MAX_LENGTH.name, "Name");
     checkLength(issues, `${key}-shortName`, person.shortName, MAX_LENGTH.shortName, "Short name");
+    checkLength(issues, `${key}-profession`, person.profession, MAX_LENGTH.profession, "Profession");
     checkLength(issues, `${key}-bio`, person.bio, MAX_LENGTH.bio, "Bio");
 
     (person.socials || []).forEach((social, i) => {
@@ -112,9 +114,14 @@ export const validateWedding = (config, now = Date.now()) => {
     const id = `event-${i}`;
     const label = `Event ${i + 1}`;
     required(`${id}-name`, event.name, `${label} needs a name`);
-    required(`${id}-day`, event.day, `${label} needs a day`);
-    required(`${id}-month`, event.month, `${label} needs a month`);
-    checkDay(issues, `${id}-day`, event.day, event.month);
+    required(`${id}-date`, event.date, `${label} needs a date`);
+    const date = String(event.date || "").trim();
+    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T00:00:00Z`).getTime()))) {
+      issues.push({ id: `${id}-date`, message: "Pick the date from the calendar", level: "error" });
+    }
+    if (String(event.end || "").trim() && !String(event.start || "").trim()) {
+      issues.push({ id: `${id}-start`, message: "Add a start time, or clear the end time", level: "warn" });
+    }
     if (!String(event.venue || "").trim() && !String(event.mapUrl || "").trim()) {
       issues.push({ id: `${id}-venue`, message: `${label} needs a venue or a map link`, level: "warn", required: true });
     }

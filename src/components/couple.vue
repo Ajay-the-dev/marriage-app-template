@@ -32,10 +32,14 @@
 
                 <div class="profile-details text-center mt-4">
                   <h3 class="partner-name">{{ person.name }}</h3>
+                  <span class="partner-profession" v-if="person.profession">{{ person.profession }}</span>
                   <span class="parent-names" v-if="person.parents">{{ person.parents }}</span>
                   <p class="partner-bio mt-3" v-if="person.bio">
                     {{ person.bio }}
                   </p>
+                  <ul class="partner-interests mt-3" v-if="person.interests?.length">
+                    <li v-for="interest in person.interests" :key="interest">{{ interest }}</li>
+                  </ul>
 
                   <div class="social-links mt-4" v-if="person.socials.length">
                     <a v-for="social in person.socials" :key="social.url" :href="social.url" target="_blank" rel="noopener noreferrer" class="social-icon">
@@ -199,6 +203,35 @@ const partners = computed(() => [
   font-weight: 500;
   letter-spacing: 0.3px;
   text-transform: none;
+}
+
+.partner-profession {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--font-serif);
+  font-size: clamp(0.78rem, 2vw, 0.85rem);
+  color: var(--gold-dark);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.partner-interests {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: 3px 12px;
+    border: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
+    border-radius: 20px;
+    font-family: var(--font-serif);
+    font-size: 0.78rem;
+    color: var(--text);
+  }
 }
 
 .partner-bio {

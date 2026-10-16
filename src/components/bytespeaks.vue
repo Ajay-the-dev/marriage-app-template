@@ -76,7 +76,7 @@ const goto = () => {
 /* Responsive adjustments for Mobile */
 @media (max-width: 767.98px) {
   .floating-signature {
-    bottom: calc(5dvh + 95px); /* Safely moves it right above your floating menu container */
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px) + 95px); /* Safely moves it right above your floating menu container */
     right: 0;
     transform: translateX(50%); /* Centers it horizontally on mobile screens */
     width: max-content;

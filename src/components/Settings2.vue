@@ -112,10 +112,19 @@
                 <div v-for="key in ['groom', 'bride']" :key="key" class="m-person">
                   <h3>{{ key === 'groom' ? 'Groom' : 'Bride' }}</h3>
                   <div class="m-person-top">
-                    <button type="button" class="m-avatar" :disabled="uploading === key" @click="pick(key)">
-                      <img :src="wedding[key].photo || PLACEHOLDER_PHOTO" alt="" />
-                      <span><i class="fa-solid" :class="uploading === key ? 'fa-spinner fa-spin' : 'fa-camera'"></i></span>
-                    </button>
+                    <div class="m-removable">
+                      <button type="button" class="m-avatar" :disabled="uploading === key" @click="pick(key)">
+                        <img :src="wedding[key].photo || PLACEHOLDER_PHOTO" alt="" />
+                        <span><i class="fa-solid" :class="uploading === key ? 'fa-spinner fa-spin' : 'fa-camera'"></i></span>
+                      </button>
+                      <button
+                        v-if="wedding[key].photo && uploading !== key"
+                        type="button"
+                        class="m-image-remove"
+                        aria-label="Remove photo"
+                        @click="removeImage(wedding[key], 'photo', 'photo')"
+                      ><i class="fa-solid fa-xmark"></i></button>
+                    </div>
                     <div class="m-person-names">
                       <label class="m-field">
                         <span>Full name</span>
@@ -129,9 +138,53 @@
                     </div>
                   </div>
                   <label class="m-field">
-                    <span>Parents</span>
-                    <input v-model="wedding[key].parents" maxlength="150" :placeholder="examples[key].parents" />
+                    <span>Profession / passion</span>
+                    <input v-model="wedding[key].profession" maxlength="60" :list="`${key}-professions`" autocomplete="off" :placeholder="examples[key].profession" />
+                    <datalist :id="`${key}-professions`">
+                      <option v-for="job in PROFESSIONS" :key="job" :value="job" />
+                    </datalist>
                   </label>
+                  <label class="m-field">
+                    <span>Father's name</span>
+                    <input :value="wedding[key].father" @input="setParentName(key, wedding[key], 'father', $event.target.value)" maxlength="60" :placeholder="examples[key].father" autocomplete="off" />
+                  </label>
+                  <label class="m-field">
+                    <span>Mother's name</span>
+                    <input :value="wedding[key].mother" @input="setParentName(key, wedding[key], 'mother', $event.target.value)" maxlength="60" :placeholder="examples[key].mother" autocomplete="off" />
+                  </label>
+                  <div v-if="parentsSuggestions(key).length" class="m-note-suggestions" role="group" :aria-label="`Parents line suggestions for the ${key}`">
+                    <span>Suggestions</span>
+                    <button
+                      v-for="text in parentsSuggestions(key)"
+                      :key="text"
+                      type="button"
+                      class="m-note-suggestion"
+                      :class="{ selected: wedding[key].parents === text }"
+                      :aria-pressed="wedding[key].parents === text"
+                      @click="wedding[key].parents = text"
+                    >{{ text }}</button>
+                  </div>
+                  <label class="m-field">
+                    <span>Parents line</span>
+                    <input v-model="wedding[key].parents" maxlength="150" :placeholder="examples[key].parents" />
+                    <small class="m-hint">Pick a suggestion or write your own.</small>
+                  </label>
+                  <div class="m-field">
+                    <label :for="`${key}-interests`">Interests</label>
+                    <InterestPills v-model="wedding[key].interests" :id="`${key}-interests`" :suggestions="INTERESTS" :max="MAX_INTERESTS" :placeholder="examples[key].interests" compact />
+                  </div>
+                  <div v-if="bioSuggestions(wedding[key]).length" class="m-note-suggestions" role="group" :aria-label="`Bio suggestions for the ${key}`">
+                    <span>About suggestions</span>
+                    <button
+                      v-for="text in bioSuggestions(wedding[key])"
+                      :key="text"
+                      type="button"
+                      class="m-note-suggestion"
+                      :class="{ selected: wedding[key].bio === text }"
+                      :aria-pressed="wedding[key].bio === text"
+                      @click="wedding[key].bio = text"
+                    >{{ text }}</button>
+                  </div>
                   <label class="m-field">
                     <span>About</span>
                     <textarea v-model="wedding[key].bio" rows="3" maxlength="600" :id="`${key}-bio`" :class="issueClass(`${key}-bio`)" :placeholder="examples[key].bio"></textarea>
@@ -239,13 +292,20 @@
                     <i class="fa-solid" :class="uploading === 'background' ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
                     <span>Upload</span>
                   </button>
-                  <button
+                  <div
                     v-if="wedding.hero.backgroundImage && !backgroundGallery.includes(wedding.hero.backgroundImage)"
-                    type="button"
-                    class="m-bg selected"
+                    class="m-removable"
                   >
-                    <img :src="wedding.hero.backgroundImage" alt="" />
-                  </button>
+                    <button type="button" class="m-bg selected">
+                      <img :src="wedding.hero.backgroundImage" alt="" />
+                    </button>
+                    <button
+                      type="button"
+                      class="m-image-remove"
+                      aria-label="Remove background"
+                      @click="removeImage(wedding.hero, 'backgroundImage', 'background image')"
+                    ><i class="fa-solid fa-xmark"></i></button>
+                  </div>
                   <button
                     v-for="src in backgroundGallery"
                     :key="src"
@@ -265,30 +325,37 @@
                   <SuggestInput v-model="wedding.eventsPage.subTitle" :options="eventsSubTitles" label="Sub title" />
                   <SuggestInput v-model="wedding.eventsPage.title" :options="eventsTitles" label="Title" />
                 </div>
+                <label class="m-field">
+                  <span>Time zone (for guests' calendars)</span>
+                  <select v-model="wedding.eventsPage.timezone">
+                    <option value="">Guest's own time zone</option>
+                    <option v-for="tz in timeZones" :key="tz" :value="tz">{{ tz.replace(/_/g, ' ') }}</option>
+                  </select>
+                </label>
                 <div class="m-item" v-for="(event, i) in wedding.eventsPage.events" :key="i">
                   <div class="m-item-head">
                     <strong>{{ event.name || `Event ${i + 1}` }}</strong>
                     <ItemControls :list="wedding.eventsPage.events" :index="i" />
                   </div>
                   <SuggestInput v-model="event.name" :options="eventNames" label="Name" :id="`event-${i}-name`" :maxlength="40" />
+                  <label class="m-field">
+                    <span>Date</span>
+                    <input type="date" :value="event.date" :id="`event-${i}-date`" :class="issueClass(`event-${i}-date`)" @change="pickEventDate(event, $event.target.value)" />
+                    <FieldIssue :for="`event-${i}-date`" />
+                  </label>
                   <div class="m-row">
                     <label class="m-field">
-                      <span>Day</span>
-                      <input v-model.trim="event.day" inputmode="numeric" maxlength="2" :id="`event-${i}-day`" :class="issueClass(`event-${i}-day`)" placeholder="12" />
-                      <FieldIssue :for="`event-${i}-day`" />
+                      <span>Starts</span>
+                      <input type="time" :value="event.start" :id="`event-${i}-start`" :class="issueClass(`event-${i}-start`)" @change="setEventTime(event, 'start', $event.target.value)" />
                     </label>
                     <label class="m-field">
-                      <span>Month</span>
-                      <select v-model="event.month" :id="`event-${i}-month`" :class="issueClass(`event-${i}-month`)">
-                        <option value="" disabled>Month</option>
-                        <option v-if="event.month && !MONTHS.includes(event.month)" :value="event.month">{{ event.month }}</option>
-                        <option v-for="m in MONTHS" :key="m" :value="m">{{ m }}</option>
-                      </select>
-                      <FieldIssue :for="`event-${i}-month`" />
+                      <span>Ends</span>
+                      <input type="time" :value="event.end" @change="setEventTime(event, 'end', $event.target.value)" />
                     </label>
                   </div>
+                  <FieldIssue :for="`event-${i}-start`" />
                   <label class="m-field">
-                    <span>Time</span>
+                    <span>Time shown to guests</span>
                     <input v-model="event.time" maxlength="40" placeholder="10:00 AM – 12:00 PM" />
                   </label>
                   <div class="m-row">
@@ -475,6 +542,7 @@
       </footer>
     </section>
     <VersionHistory v-model:open="historyOpen" :wedding-id="weddingId" :keep="limits.history" :read-only="readOnly" @restore="restoreVersion" />
+    <HeroSyncDialog :options="heroSync" @update="saveNow" @keep="saveNow()" @cancel="heroSync = null" />
   </Basic>
 </template>
 
@@ -482,6 +550,7 @@
 import { ref, computed, h, nextTick, onMounted, onBeforeUnmount } from "vue";
 import Basic from "@/views/Basic.vue";
 import VersionHistory from "@/components/VersionHistory.vue";
+import HeroSyncDialog from "@/components/HeroSyncDialog.vue";
 import { useWeddingStore, weddingCode, weddingStatus, weddingMeta } from "@/stores/wedding";
 import { recordUpload, setEditLocked, setHidden } from "@/services/weddings";
 import { useMyPlan } from "@/composables/plan";
@@ -492,10 +561,14 @@ import { uploadImage as uploadToCloudinary } from "@/services/cloudinary";
 import { onBeforeRouteLeave, useRoute } from "vue-router";
 import { themes, getTheme } from "@/config/themes";
 import { PLACEHOLDER_PHOTO } from "@/config/blankWedding";
-import { validateWedding, MONTHS, SHORT_MONTHS } from "@/utils/validation";
+import { validateWedding, SHORT_MONTHS } from "@/utils/validation";
+import { localTimeZone, setEventDate, setEventTime, timeZoneOptions } from "@/utils/calendar";
 import { storyNoteSuggestions } from "@/config/storyNotes";
-import { eventSuggestions, suggestionValues } from "@/utils/eventSuggestions";
+import { eventSuggestions, heroSyncOptions, suggestionValues } from "@/utils/eventSuggestions";
 import { SOCIAL_TYPES, useSocialLinks } from "@/composables/socialLinks";
+import { parentsLineSuggestions, setParentName } from "@/utils/parentsLine";
+import { bioSuggestions, INTERESTS, MAX_INTERESTS, PROFESSIONS } from "@/utils/bioSuggestions";
+import InterestPills from "@/components/InterestPills.vue";
 import { shareMessage, DEFAULT_SHARE_MESSAGE, SHARE_MESSAGE_SUGGESTIONS } from "@/utils/shareMessage";
 
 // Phone-first editor: one section open at a time, save bar pinned to the bottom.
@@ -614,7 +687,13 @@ SuggestInput.props = ["modelValue", "options", "label", "id", "maxlength", "plac
 SuggestInput.emits = ["update:modelValue"];
 
 /* ── Lists ── */
-const blankEvent = (name = "") => ({ name, day: "", month: "", time: "", venue: "", location: "", mapUrl: "" });
+const blankEvent = (name = "") => ({ name, date: "", start: "", end: "", day: "", month: "", time: "", venue: "", location: "", mapUrl: "" });
+// The first date picked also sets the time zone, to the couple's own
+const pickEventDate = (event, date) => {
+  setEventDate(event, date);
+  if (date && !wedding.eventsPage.timezone) wedding.eventsPage.timezone = localTimeZone();
+};
+const timeZones = computed(() => timeZoneOptions(wedding.eventsPage.timezone));
 const blankMilestone = (name = "") => ({ name, day: "", month: "", year: "", note: "" });
 
 const remove = (list, i) => {
@@ -651,6 +730,11 @@ const AddChips = (props) => {
   ]);
 };
 AddChips.props = ["list", "names", "max", "blank", "noun"];
+
+// Clears a single image (the upload still counts towards the plan)
+const removeImage = (target, field, label) => {
+  if (confirm(`Remove this ${label}?`)) target[field] = "";
+};
 
 // Thumbnails in a grid, tap × to remove, last tile uploads more
 const ImageGrid = (props) => {
@@ -745,16 +829,26 @@ const socialExamples = {
 };
 const socials = useSocialLinks(wedding, (id) => issueFor(id));
 
+const parentsSuggestions = (key) => parentsLineSuggestions(key, wedding[key].father, wedding[key].mother);
+
 const examples = {
   groom: {
     name: "Arjun Kumar",
     shortName: "Arjun",
+    profession: "Software Engineer",
+    interests: "Cricket, Road trips",
+    father: "Ravi Kumar",
+    mother: "Lakshmi Kumar",
     parents: "Son of Mr. Ravi Kumar & Mrs. Lakshmi Kumar",
     bio: "Loves cricket, road trips and filter coffee.",
   },
   bride: {
     name: "Meera Nair",
     shortName: "Meera",
+    profession: "Doctor",
+    interests: "Classical dance, Books",
+    father: "Suresh Nair",
+    mother: "Anjali Nair",
     parents: "Daughter of Mr. Suresh Nair & Mrs. Anjali Nair",
     bio: "Loves classical dance, books and the beach.",
   },
@@ -870,6 +964,25 @@ const save = async () => {
     flash(`Fix ${plural(errorIssues.value.length, "problem")} before saving`, "error");
     jumpToIssue(errorIssues.value[0]);
     return;
+  }
+  // An event changed but the home page didn't follow: ask first
+  const options = heroSyncOptions(wedding.$state, lastSaved.value && JSON.parse(lastSaved.value));
+  if (options.length) {
+    heroSync.value = options;
+    return;
+  }
+  await saveNow();
+};
+
+// Changed events the popup offers for the home page: [{ event, changes }] (null when closed)
+const heroSync = ref(null);
+
+// Saves, first copying the chosen event's details to the home page
+const saveNow = async (changes = []) => {
+  heroSync.value = null;
+  for (const c of changes) {
+    if (c.key === "target") weddingDate.value = c.to;
+    else wedding.hero[c.key] = c.to;
   }
   saving.value = true;
   try {
@@ -1270,7 +1383,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  > span { font-size: 0.8rem; font-weight: 500; color: var(--text); }
+  > span, > label { font-size: 0.8rem; font-weight: 500; color: var(--text); }
 }
 
 .m-row {
@@ -1609,6 +1722,11 @@ textarea { resize: vertical; line-height: 1.5; }
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.m-removable {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .m-avatar {

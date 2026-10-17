@@ -5,13 +5,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import weddingConfig from "@/config/wedding.json";
-import { useWeddingStore } from "@/stores/wedding";
-import { fetchWedding, listCards, saveCard, deleteCard } from "@/services/weddings";
+import { useWeddingStore, holdsWedding } from "@/stores/wedding";
+import { useAuthStore } from "@/stores/auth";
+import { uploadDocument } from "@/services/cloudinary";
+import { fetchWedding, listCards, saveCard, deleteCard, setPrintCard, recordUpload, CARD_SLOTS } from "@/services/weddings";
+import { getPlan } from "@/config/plans";
+import { useMyPlan } from "@/composables/plan";
 import { getTheme, fontsUrl } from "@/config/themes";
 import { CARD_VERSIONS, getVersion, versionHtml } from "@/config/cardWording";
 import {
   getPaper, defaultCard, sanitizeCardHtml, pdfFileName,
-  FONTS, fontFamilyName, usedFontSpecs,
+  FONTS, fontFamilyName, usedFontSpecs, MM_TO_PX, cardStyleFor, downloadCardPdf, printCardCopy,
 } from "@/utils/traditionalCard";
 
 export const BLOCKS = [
@@ -21,10 +25,6 @@ export const BLOCKS = [
   { tag: "p", label: "Text", hint: "Body text" },
   { tag: "h6", label: "Small", hint: "Fine print, eg. parents and blessings" },
 ];
-const MM_TO_PX = 96 / 25.4;
-// Rendered at 300 dpi for print
-const EXPORT_SCALE = 300 / 96;
-
 // Indian-language fonts preview in their own script
 const SCRIPT_SAMPLES = {
   "Noto Serif Malayalam": "വിവാഹം",
@@ -37,34 +37,6 @@ const SCRIPT_SAMPLES = {
 // The page's own fonts, loaded with the card's
 const PAGE_FONTS = ["Cinzel+Decorative:wght@400;700", "Montserrat:wght@300;400;500;600"];
 
-// html2canvas draws inline SVGs poorly, and without the card's CSS variables.
-// Swap each one for an image of itself with its colours and size written in,
-// resolving once the images are ready to draw.
-const svgsToImages = (root) => {
-  const view = root.ownerDocument.defaultView;
-  return Promise.all([...root.querySelectorAll("svg")].map((svg) => {
-    const { width, height } = svg.getBoundingClientRect();
-    const copy = svg.cloneNode(true);
-    const sources = svg.querySelectorAll("[fill], [stroke]");
-    copy.querySelectorAll("[fill], [stroke]").forEach((node, i) => {
-      const style = view.getComputedStyle(sources[i]);
-      if (node.hasAttribute("fill")) node.setAttribute("fill", style.fill);
-      if (node.hasAttribute("stroke")) node.setAttribute("stroke", style.stroke);
-    });
-    // Its placement on the card (position, margins) would shift the drawing inside the image
-    copy.removeAttribute("style");
-    copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    copy.setAttribute("width", width);
-    copy.setAttribute("height", height);
-    const img = root.ownerDocument.createElement("img");
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`;
-    // The clone carries each element's computed styles inline, so this keeps its place on the card
-    img.style.cssText = `${svg.getAttribute("style") || ""};width:${width}px;height:${height}px`;
-    svg.replaceWith(img);
-    return img.decode();
-  }));
-};
-
 const htmlForm = (html) => {
   const el = document.createElement("div");
   el.innerHTML = sanitizeCardHtml(html);
@@ -73,8 +45,8 @@ const htmlForm = (html) => {
 
 const formatDate = (date) => date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
-const savedValues = ({ name, html, version, versions, paper, border, motif, theme }) =>
-  ({ name, html, paper, border, motif, theme, ...(version && { version }), versions: { ...versions } });
+const savedValues = ({ name, html, version, versions, paper, border, motif, motifSize, theme }) =>
+  ({ name, html, paper, border, motif, motifSize: motifSize || "m", theme, ...(version && { version }), versions: { ...versions } });
 
 // back: the route names to go back to ({ editor, list })
 export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "settings" } } = {}) {
@@ -96,7 +68,7 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
     messageType.value = type;
     if (type === "ok") setTimeout(() => { if (message.value === text) message.value = ""; }, 3000);
   };
-  const card = reactive({ name: "", html: "", paper: "a5", border: "temple", motif: "lotus", theme: "" });
+  const card = reactive({ name: "", html: "", paper: "a5", border: "temple", motif: "lotus", motifSize: "m", theme: "" });
 
   const coupleNames = computed(() => {
     const g = config.value?.groom?.shortName;
@@ -108,27 +80,7 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
   const theme = computed(() => getTheme(card.theme || config.value?.theme));
   const paper = computed(() => getPaper(card.paper));
   const cardPx = computed(() => ({ width: paper.value.width * MM_TO_PX, height: paper.value.height * MM_TO_PX }));
-  // Type grows with the paper's area, so A4 isn't just A5 with wide margins
-  const typeScale = computed(() => Math.sqrt((paper.value.width * paper.value.height) / (148 * 210)));
-
-  const cardStyle = computed(() => {
-    const { colors, fonts } = theme.value;
-    return {
-      width: `${paper.value.width}mm`,
-      height: `${paper.value.height}mm`,
-      "--u": typeScale.value,
-      "--c-accent": colors.gold,
-      "--c-accent-light": colors["gold-light"],
-      "--c-accent-dark": colors["gold-dark"],
-      "--c-bg": colors.cream,
-      "--c-heading": colors.dark,
-      "--c-text": colors.text,
-      "--c-muted": colors.sage,
-      "--f-display": fonts.display,
-      "--f-serif": fonts.serif,
-      "--f-sans": fonts.sans,
-    };
-  });
+  const cardStyle = computed(() => cardStyleFor(theme.value, paper.value));
 
   const swatches = computed(() => [
     { name: "Accent", value: theme.value.colors["gold-dark"] },
@@ -341,7 +293,7 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
     setText(freshHtml(card.version));
   };
 
-  watch(() => [card.paper, card.border, card.motif, card.theme], () => nextTick(checkOverflow));
+  watch(() => [card.paper, card.border, card.motif, card.motifSize, card.theme], () => nextTick(checkOverflow));
 
   // ── Saved cards ──
   // Each invitation keeps its cards (as HTML) in the cloud
@@ -357,10 +309,22 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
   const cardSnapshot = () => JSON.stringify(cardData());
   const isDirty = computed(() => cardSnapshot() !== lastSaved.value);
   const canSave = computed(() => !!weddingId.value && !weddingLocked.value);
+
+  // Cards per invitation on the owner's plan
+  const myPlan = useMyPlan();
+  const plan = computed(() => getPlan(myPlan.value));
+  const cardLimit = computed(() => plan.value.cards);
+  const freeSlot = computed(() => CARD_SLOTS.slice(0, cardLimit.value).find((id) => !cards.value.some((c) => c.id === id)) || "");
+  // Room for one more saved card (cards from before the limit count too)
+  const canAddCard = computed(() => cards.value.length < cardLimit.value && !!freeSlot.value);
+  const limitText = computed(() =>
+    `${plan.value.label} allows ${cardLimit.value} printed cards per invitation. Delete one to save another${plan.value.cards < getPlan("plus").cards ? ", or upgrade to Plus for more" : ""}.`);
+
   const saveHint = computed(() =>
     !weddingId.value ? "Open this page from one of your invitations to save cards"
       : weddingLocked.value ? "This invitation is read-only on your plan"
-        : "Save this card with the invitation (Ctrl+S)");
+        : !cardId.value && !canAddCard.value ? limitText.value
+          : "Save this card with the invitation (Ctrl+S)");
   const statusText = computed(() =>
     !cardId.value ? "Not saved yet" : isDirty.value ? "Unsaved changes" : "Saved");
 
@@ -385,13 +349,23 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
   const confirmDiscard = () => !isDirty.value || confirm("You have unsaved changes to this card. Discard them?");
 
   const openCard = (c) => {
-    if (c.id === cardId.value || !confirmDiscard()) return false;
+    if (c.id === cardId.value) {
+      pdfView.value = false;
+      return true;
+    }
+    if (!confirmDiscard()) return false;
     showCard(savedValues(c), c.id, true);
+    pdfView.value = false;
     return true;
   };
 
   const newCard = () => {
+    if (weddingId.value && !canAddCard.value) {
+      flash(limitText.value, "warn");
+      return false;
+    }
     if (!confirmDiscard()) return false;
+    pdfView.value = false;
     showCard({ name: `Card ${cards.value.length + 1}` }, "", false);
     // A fresh card isn't a change worth warning about until it's edited
     lastSaved.value = cardSnapshot();
@@ -402,18 +376,40 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
     cards.value = await listCards(weddingId.value);
   };
 
+  // The card shown to guests on the home page follows its saved changes
+  const updateGuestCopy = async (id) => {
+    const saved = cards.value.find((c) => c.id === id);
+    if (!saved || config.value.hero?.printCard?.id !== id) return;
+    const copy = printCardCopy(saved);
+    try {
+      await setPrintCard(weddingId.value, copy);
+      config.value.hero.printCard = copy;
+      // Settings keeps the invitation loaded; keep its copy in step so a later save there doesn't undo this
+      if (holdsWedding(weddingId.value)) wedding.hero.printCard = copy;
+      flash("Card saved and updated on the home page", "ok");
+    } catch (error) {
+      flash(`Card saved, but guests still see the old version: ${error.message}`, "warn");
+    }
+  };
+
   const saveCurrent = async (asCopy = false) => {
     if (!canSave.value || saving.value) return;
+    const creating = asCopy || !cardId.value;
+    if (creating && !canAddCard.value) {
+      flash(limitText.value, "error");
+      return;
+    }
     saving.value = true;
     try {
       if (asCopy) card.name = `${card.name || "Card"} (copy)`.slice(0, 60);
-      const id = await saveCard(weddingId.value, asCopy ? "" : cardId.value, cardData());
+      const id = await saveCard(weddingId.value, creating ? "" : cardId.value, cardData(), freeSlot.value);
       cardId.value = id;
       lastSaved.value = cardSnapshot();
       const { card: _, ...query } = route.query;
       router.replace({ query: { ...query, card: id } });
       flash(asCopy ? "Saved as a new card" : "Card saved", "ok");
       await refreshCards().catch(() => {});
+      await updateGuestCopy(id);
     } catch (error) {
       flash(`Could not save the card: ${error.message}`, "error");
     } finally {
@@ -443,7 +439,7 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
   const onKeydown = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
       e.preventDefault();
-      if (!cardId.value || isDirty.value) saveCurrent();
+      if (!pdfView.value && (!cardId.value || isDirty.value)) saveCurrent();
     }
   };
   const beforeUnload = (e) => {
@@ -453,30 +449,76 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
   };
   onBeforeRouteLeave(() => !isDirty.value || confirm("You have unsaved changes to this card. Leave anyway?"));
 
+  // ── Your own PDF ──
+  // A ready-made invitation PDF shown to guests instead of a designed card. It goes live
+  // straight away (config.hero.printCard = { type: "pdf", url, name }) and counts as one upload.
+  const auth = useAuthStore();
+  const uploads = ref(0);
+  const uploadingPdf = ref(false);
+  const ownPdf = computed(() => (config.value?.hero?.printCard?.type === "pdf" ? config.value.hero.printCard : null));
+  // Showing the uploaded PDF in place of the card (and hiding the editing tools);
+  // opening a card or starting a new one goes back to the editor
+  const pdfView = ref(false);
+  const showOwnPdf = () => { if (ownPdf.value) pdfView.value = true; };
+  const hideOwnPdf = () => { pdfView.value = false; };
+  // A designed card is on the home page now (the PDF would replace it)
+  const cardOnHome = computed(() => !!config.value?.hero?.printCard && !ownPdf.value);
+  const uploadOwnPdf = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file || !canSave.value) return;
+    if (file.type !== "application/pdf") return flash(`${file.name} is not a PDF`, "error");
+    if (uploads.value >= plan.value.uploads) return flash(`You've used all ${plan.value.uploads} uploads for this invitation`, "error");
+    if (cardOnHome.value && !confirm("Guests see one of your designed cards on the home page. Show this PDF instead?")) return;
+    uploadingPdf.value = true;
+    try {
+      const url = await uploadDocument(file, { uid: auth.user.uid, key: "invitation" });
+      await recordUpload(weddingId.value);
+      uploads.value++;
+      const printCard = { type: "pdf", url, name: file.name.slice(0, 100) };
+      await setPrintCard(weddingId.value, printCard);
+      config.value.hero = { ...config.value.hero, printCard };
+      if (holdsWedding(weddingId.value)) wedding.hero.printCard = printCard;
+      pdfView.value = true;
+      flash("PDF uploaded, guests now see it on the home page", "ok");
+    } catch (error) {
+      flash(`Could not upload the PDF: ${error.message}`, "error");
+    } finally {
+      uploadingPdf.value = false;
+    }
+  };
+
+  // Takes the PDF off the home page (the file stays on Cloudinary; the upload still counts)
+  const removingPdf = ref(false);
+  const removeOwnPdf = async () => {
+    if (!ownPdf.value || !confirm("Remove your PDF? Guests will no longer see it on the home page.")) return;
+    removingPdf.value = true;
+    try {
+      await setPrintCard(weddingId.value, null);
+      const { printCard: _, ...hero } = config.value.hero;
+      config.value.hero = hero;
+      if (holdsWedding(weddingId.value)) delete wedding.hero.printCard;
+      pdfView.value = false;
+      flash("PDF removed from the home page", "ok");
+    } catch (error) {
+      flash(`Could not remove the PDF: ${error.message}`, "error");
+    } finally {
+      removingPdf.value = false;
+    }
+  };
+
   // ── PDF ──
   const exporting = ref(false);
   const downloadPdf = async () => {
     exporting.value = true;
     message.value = "";
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas-pro"), import("jspdf")]);
-      await document.fonts.ready;
-      const canvas = await html2canvas(cardEl.value, {
-        scale: EXPORT_SCALE,
-        useCORS: true,
-        backgroundColor: theme.value.colors.cream,
-        // Capture the card at full size, without the on-screen scaling
-        onclone: (doc, el) => {
-          const scaler = doc.querySelector(".card-scaler");
-          if (scaler) scaler.style.transform = "none";
-          return svgsToImages(el);
-        },
+      await downloadCardPdf(cardEl.value, {
+        paper: paper.value,
+        background: theme.value.colors.cream,
+        title: `${coupleNames.value || "Wedding"} invitation`,
+        fileName: pdfFileName(config.value),
       });
-      const { width, height } = paper.value;
-      const pdf = new jsPDF({ orientation: width > height ? "landscape" : "portrait", unit: "mm", format: [width, height] });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, width, height);
-      pdf.setProperties({ title: `${coupleNames.value || "Wedding"} invitation` });
-      pdf.save(pdfFileName(config.value));
     } catch (error) {
       console.error("Could not create PDF:", error);
       flash(`Could not create the PDF: ${error.message}`, "error");
@@ -496,6 +538,7 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
         }
         config.value = { ...weddingConfig, ...result.config };
         weddingLocked.value = !!result.locked;
+        uploads.value = result.uploads;
       } else {
         config.value = wedding.snapshot();
       }
@@ -515,6 +558,8 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
       showCard({ name: "Card 1" }, "", false);
       lastSaved.value = cardSnapshot();
     }
+    // The invitation shows guests its own PDF: open on that
+    pdfView.value = !!ownPdf.value;
     if (weddingLocked.value) flash("This invitation is read-only on your plan, so cards can't be saved. You can still download the PDF.", "warn");
     resizeObserver = new ResizeObserver(([entry]) => { stageWidth.value = entry.contentRect.width; });
     resizeObserver.observe(stage.value);
@@ -555,6 +600,9 @@ export function useTraditionalEditor({ back = { editor: "edit-wedding", list: "s
     editedVersions, versionPillsEl, switchVersion, resetText,
     // saved cards
     cards, cardId, saving, deletingId, isDirty, canSave, saveHint, statusText, formatDate,
+    cardLimit, canAddCard, limitText,
+    // your own PDF
+    ownPdf, cardOnHome, uploadingPdf, uploadOwnPdf, pdfView, showOwnPdf, hideOwnPdf, removingPdf, removeOwnPdf,
     openCard, newCard, saveCurrent, removeCard,
     // PDF
     exporting, downloadPdf,

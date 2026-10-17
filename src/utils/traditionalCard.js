@@ -4,6 +4,10 @@
 import { themes } from '@/config/themes'
 import { versionForTheme, versionHtml } from '@/config/cardWording'
 
+export const MM_TO_PX = 96 / 25.4
+// Rendered at 300 dpi for print
+const EXPORT_SCALE = 300 / 96
+
 export const PAPERS = [
   { id: 'a5', label: 'A5', width: 148, height: 210 },
   { id: '5x7', label: '5 × 7 in', width: 127, height: 178 },
@@ -15,14 +19,38 @@ export const BORDERS = [
   { id: 'temple', label: 'Temple' },
   { id: 'double', label: 'Double rule' },
   { id: 'minimal', label: 'Minimal' },
+  { id: 'floral', label: 'Floral vine' },
+  { id: 'arch', label: 'Royal arch' },
+  { id: 'paisley', label: 'Paisley' },
+  { id: 'deco', label: 'Art deco' },
+  { id: 'pearl', label: 'Pearl string' },
   { id: 'none', label: 'None' },
 ]
 
 export const MOTIFS = [
   { id: 'lotus', label: 'Lotus' },
   { id: 'mandala', label: 'Mandala' },
+  { id: 'om', label: 'Om' },
+  { id: 'ganapathy', label: 'Ganapathy' },
+  { id: 'kalash', label: 'Kalash' },
+  { id: 'diya', label: 'Diya' },
+  { id: 'bells', label: 'Temple bells' },
+  { id: 'peacock', label: 'Peacock feather' },
+  { id: 'cross', label: 'Cross' },
+  { id: 'moon', label: 'Moon & stars' },
+  { id: 'rings', label: 'Rings' },
+  { id: 'hearts', label: 'Hearts' },
   { id: 'none', label: 'None' },
 ]
+
+// How big the motif is drawn, relative to its usual size
+export const MOTIF_SIZES = [
+  { id: 'xs', label: 'V. small', short: 'XS', scale: 0.6 },
+  { id: 's', label: 'Small', short: 'S', scale: 0.8 },
+  { id: 'm', label: 'Medium', short: 'M', scale: 1 },
+  { id: 'l', label: 'Large', short: 'L', scale: 1.35 },
+]
+export const motifScale = (id) => (MOTIF_SIZES.find((s) => s.id === id) || MOTIF_SIZES[2]).scale
 
 // Fonts the editor offers for selected text (google: the Google Fonts "family=" spec)
 export const FONTS = [
@@ -79,6 +107,7 @@ export const defaultCard = (config) => ({
   paper: 'a5',
   border: 'temple',
   motif: 'lotus',
+  motifSize: 'm',
   theme: config.theme || '',
 })
 
@@ -121,3 +150,88 @@ export const pdfFileName = (config) => {
   const names = [config.groom?.shortName, config.bride?.shortName].filter(Boolean).join('-')
   return `${(names || 'wedding').replace(/[^\w-]+/g, '-')}-invitation.pdf`
 }
+
+// Size, colours and fonts of a card on the given paper, in the given theme
+export const cardStyleFor = (theme, paper) => {
+  const { colors, fonts } = theme
+  return {
+    width: `${paper.width}mm`,
+    height: `${paper.height}mm`,
+    // Type grows with the paper's area, so A4 isn't just A5 with wide margins
+    '--u': Math.sqrt((paper.width * paper.height) / (148 * 210)),
+    '--c-accent': colors.gold,
+    '--c-accent-light': colors['gold-light'],
+    '--c-accent-dark': colors['gold-dark'],
+    '--c-bg': colors.cream,
+    '--c-heading': colors.dark,
+    '--c-text': colors.text,
+    '--c-muted': colors.sage,
+    '--f-display': fonts.display,
+    '--f-serif': fonts.serif,
+    '--f-sans': fonts.sans,
+  }
+}
+
+// html2canvas draws inline SVGs poorly, and without the card's CSS variables.
+// Swap each one for an image of itself with its colours and size written in,
+// resolving once the images are ready to draw.
+const svgsToImages = (root) => {
+  const view = root.ownerDocument.defaultView
+  return Promise.all([...root.querySelectorAll('svg')].map((svg) => {
+    const { width, height } = svg.getBoundingClientRect()
+    const copy = svg.cloneNode(true)
+    const sources = svg.querySelectorAll('[fill], [stroke]')
+    copy.querySelectorAll('[fill], [stroke]').forEach((node, i) => {
+      const style = view.getComputedStyle(sources[i])
+      if (node.hasAttribute('fill')) node.setAttribute('fill', style.fill)
+      if (node.hasAttribute('stroke')) node.setAttribute('stroke', style.stroke)
+    })
+    // Its placement on the card (position, margins) would shift the drawing inside the image
+    copy.removeAttribute('style')
+    copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    copy.setAttribute('width', width)
+    copy.setAttribute('height', height)
+    const img = root.ownerDocument.createElement('img')
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`
+    // The clone carries each element's computed styles inline, so this keeps its place on the card
+    img.style.cssText = `${svg.getAttribute('style') || ''};width:${width}px;height:${height}px`
+    svg.replaceWith(img)
+    return img.decode()
+  }))
+}
+
+// Draws the card element (from <PrintCard>) into a PDF of its paper size and downloads it
+export const downloadCardPdf = async (cardEl, { paper, background, title, fileName }) => {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas-pro'), import('jspdf')])
+  await document.fonts.ready
+  const canvas = await html2canvas(cardEl, {
+    scale: EXPORT_SCALE,
+    useCORS: true,
+    backgroundColor: background,
+    // Capture the card at full size, without the on-screen scaling
+    onclone: (doc, el) => {
+      const scaler = doc.querySelector('.card-scaler')
+      if (scaler) scaler.style.transform = 'none'
+      return svgsToImages(el)
+    },
+  })
+  const { width, height } = paper
+  const pdf = new jsPDF({ orientation: width > height ? 'landscape' : 'portrait', unit: 'mm', format: [width, height] })
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, width, height)
+  pdf.setProperties({ title })
+  pdf.save(fileName)
+}
+
+// The copy of a saved card kept in the invitation (config.hero.printCard) for guests:
+// the cards themselves are private to the owner
+export const printCardCopy = (c) => ({
+  id: c.id,
+  name: c.name || '',
+  html: sanitizeCardHtml(c.html || ''),
+  paper: c.paper,
+  border: c.border,
+  motif: c.motif,
+  motifSize: c.motifSize || 'm',
+  theme: c.theme || '',
+  savedAt: c.updatedAt?.getTime() ?? 0,
+})

@@ -10,6 +10,9 @@
             <h1>My invitations</h1>
           </div>
           <div class="toolbar-actions">
+            <router-link :to="{ name: 'help' }" class="btn-ghost" title="How to set up and send your invitation">
+              <i class="fa-regular fa-circle-question"></i><span>Help</span>
+            </router-link>
             <span v-if="auth.user" class="user-chip" :title="auth.user.email">
               <img v-if="auth.user.photoURL" :src="auth.user.photoURL" alt="" referrerpolicy="no-referrer" />
               <i v-else class="fa-solid fa-circle-user"></i>

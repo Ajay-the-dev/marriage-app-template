@@ -24,6 +24,9 @@
             </div>
           </div>
           <div class="toolbar-actions">
+            <router-link :to="{ name: 'help' }" class="btn-ghost" title="How to set up and send your invitation">
+              <i class="fa-regular fa-circle-question"></i><span>Help</span>
+            </router-link>
             <button class="btn-ghost" @click="discard" :disabled="!isDirty || readOnly" title="Discard unsaved changes">
               <i class="fa-solid fa-rotate-left"></i><span>Discard</span>
             </button>
@@ -667,6 +670,32 @@
             </button>
           </div>
 
+          <h3>Printed invitation</h3>
+          <div class="grid">
+            <label class="field span-2">
+              <span>Card guests can view and download as a PDF</span>
+              <select v-model="printCardChoice" :disabled="readOnly || (!printCards.length && !printPdf)">
+                <option value="">{{ printCards.length || printPdf ? 'None' : 'No saved cards yet' }}</option>
+                <option v-if="printPdf" :value="PDF_CHOICE">Your PDF · {{ printPdf.name || 'invitation.pdf' }}</option>
+                <option v-for="c in printCards" :key="c.id" :value="c.id">{{ c.name || 'Untitled card' }}</option>
+                <option v-if="printCardMissing" :value="wedding.hero.printCard.id">{{ wedding.hero.printCard.name || 'Untitled card' }} (deleted)</option>
+              </select>
+              <small v-if="printCardsError">{{ printCardsError }}</small>
+            </label>
+          </div>
+          <div class="print-card-actions">
+            <button v-if="printCardOutdated" type="button" class="btn-upload" :disabled="readOnly" @click="attachPrintCard(printCardOutdated)">
+              <i class="fa-solid fa-rotate"></i> Use the latest saved changes
+            </button>
+            <router-link :to="{ name: 'traditional', query: { id: $route.params.id } }" class="btn-upload">
+              <i class="fa-solid fa-pen-ruler"></i> {{ printCards.length || printPdf ? 'Edit cards' : 'Design a card' }}
+            </router-link>
+            <a v-if="printPdf" :href="printPdf.url" target="_blank" rel="noopener" class="btn-upload">
+              <i class="fa-solid fa-up-right-from-square"></i> Open your PDF
+            </a>
+          </div>
+          <p class="background-gallery-label">Design a card, or upload a PDF you already have, in the card editor.</p>
+
           <div class="card-subhead">
             <h3>Countdown</h3>
             <div class="template-pills" role="radiogroup" aria-label="Countdown style">
@@ -986,6 +1015,11 @@
               <span>What guests receive</span>
               <p>{{ shareMessagePreview }}</p>
             </div>
+            <label class="field toggle span-2">
+              <input type="checkbox" v-model="wedding.site.autoDownload" :disabled="readOnly || !wedding.hero.printCard" />
+              <span>Auto download the printed invitation (PDF) the first time a guest opens the home page</span>
+            </label>
+            <small v-if="!wedding.hero.printCard" class="span-2">Choose a printed invitation in the Home page section to use this.</small>
           </div>
         </div>
 
@@ -1129,7 +1163,8 @@ import Basic from "@/views/Basic.vue";
 import VersionHistory from "@/components/VersionHistory.vue";
 import HeroSyncDialog from "@/components/HeroSyncDialog.vue";
 import { useWeddingStore, weddingCode, weddingStatus, weddingMeta } from "@/stores/wedding";
-import { recordUpload, setEditLocked, setHidden } from "@/services/weddings";
+import { listCards, recordUpload, setEditLocked, setHidden } from "@/services/weddings";
+import { printCardCopy } from "@/utils/traditionalCard";
 import { useMyPlan } from "@/composables/plan";
 import { getPlan, overLimits } from "@/config/plans";
 import { showUpgrade } from "@/composables/upgrade";
@@ -1925,6 +1960,44 @@ const uploadBackground = async (e) => {
   flash("Background uploaded, click Save to keep it", "warn");
 };
 
+// Printed invitation shown on the home page: a copy of one saved card, kept in the config
+// so guests can see it (the cards themselves are private to the owner)
+const printCards = ref([]);
+const printCardsError = ref("");
+const loadPrintCards = async () => {
+  try {
+    printCards.value = await listCards(weddingId);
+  } catch (error) {
+    printCardsError.value = `Could not load your printed cards: ${error.message}`;
+  }
+};
+const attachPrintCard = (c) => {
+  wedding.hero.printCard = printCardCopy(c);
+};
+// A PDF uploaded in the card editor instead of a designed card: { type: "pdf", url, name }.
+// Kept while another card is picked, so switching back doesn't need a new upload.
+const PDF_CHOICE = "__pdf";
+const lastPdf = ref(null);
+const printPdf = computed(() => (wedding.hero.printCard?.type === "pdf" ? wedding.hero.printCard : lastPdf.value));
+
+const printCardChoice = computed({
+  get: () => (wedding.hero.printCard?.type === "pdf" ? PDF_CHOICE : wedding.hero.printCard?.id || ""),
+  set: (id) => {
+    if (wedding.hero.printCard?.type === "pdf") lastPdf.value = wedding.hero.printCard;
+    const c = printCards.value.find((x) => x.id === id);
+    if (id === PDF_CHOICE && printPdf.value) wedding.hero.printCard = { ...printPdf.value };
+    else if (c) attachPrintCard(c);
+    else delete wedding.hero.printCard;
+  },
+});
+const printCardMissing = computed(() =>
+  !!wedding.hero.printCard?.id && !printCards.value.some((c) => c.id === wedding.hero.printCard.id));
+// The attached card, when it was saved again after being attached
+const printCardOutdated = computed(() => {
+  const c = printCards.value.find((x) => x.id === wedding.hero.printCard?.id);
+  return c && (c.updatedAt?.getTime() ?? 0) > (wedding.hero.printCard.savedAt || 0) ? c : null;
+});
+
 const importInput = ref(null);
 const importFile = async (e) => {
   const file = e.target.files[0];
@@ -2086,6 +2159,7 @@ onBeforeRouteLeave(() =>
 onMounted(() => {
   window.addEventListener("scroll", onScroll, { passive: true });
   loadSaved();
+  loadPrintCards();
   window.addEventListener("beforeunload", beforeUnload);
   document.addEventListener("click", closeIconPicker);
   document.head.appendChild(previewFonts);
@@ -2898,6 +2972,15 @@ select.attention { border-color: var(--gold-dark) !important; }
   grid-template-columns: 140px 1fr;
   gap: 20px;
   align-items: start;
+}
+
+.print-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+
+  a.btn-upload { text-decoration: none; }
 }
 
 .background-picker {

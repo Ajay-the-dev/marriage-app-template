@@ -48,3 +48,28 @@ export const uploadImage = async (file, { uid, key }) => {
   if (!res.ok) throw new Error(data.error?.message || `Upload failed (${res.status})`)
   return optimizedUrl(data.secure_url)
 }
+
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+
+// Uploads a PDF into weddings/<uid>/<key> as a raw file (kept exactly as it is) and returns its URL.
+// New Cloudinary accounts block PDF delivery: enable
+// Settings → Security → "Allow delivery of PDF and ZIP files".
+export const uploadDocument = async (file, { uid, key }) => {
+  if (!isCloudinaryConfigured) {
+    throw new Error('Cloudinary is not configured (see .env.example)')
+  }
+  if (!uid) throw new Error('Please sign in again to upload files')
+  if (file.size > MAX_DOCUMENT_BYTES) throw new Error('The PDF is larger than 10 MB')
+  const body = new FormData()
+  body.append('file', file)
+  body.append('upload_preset', uploadPreset)
+  body.append('folder', `weddings/${uid}/${key}`)
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, { method: 'POST', body })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error?.message || `Upload failed (${res.status})`)
+  return data.secure_url
+}
+
+// A Cloudinary link that downloads the file instead of opening it
+export const downloadUrl = (url) => (url.includes('res.cloudinary.com/') ? url.replace('/upload/', '/upload/fl_attachment/') : url)

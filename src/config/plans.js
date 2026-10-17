@@ -11,6 +11,7 @@ export const PLANS = {
     milestones: 10,
     gallery: 4,
     saveTheDate: 2,
+    cards: 2, // printed (traditional) invitation cards per invitation
     editNavigation: false,
     hideBadge: false,
     history: 0, // earlier saved versions kept per invitation
@@ -25,6 +26,7 @@ export const PLANS = {
     milestones: 25,
     gallery: 25,
     saveTheDate: 5,
+    cards: 5,
     editNavigation: true,
     hideBadge: true,
     history: 5,

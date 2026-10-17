@@ -56,6 +56,22 @@ const demoTimeLeft = computed(() => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 })
 
+// Signed in on the default template, the content is only sample data:
+// buttons inside its pages send the user to their invitations instead (navigation still works)
+const router = useRouter()
+const SAMPLE_PAGES = ['events', 'story', 'moments', 'couple']
+const CLICKABLE = 'button, a, [role="button"], .gallery-item'
+const NAVIGATION = '.desktop-nav-container, .floating-menu-container, [data-allow-click]'
+const redirectToSettings = (event) => {
+  if (isPreviewFrame || shareCode.value || !SAMPLE_PAGES.includes(route.name) || !auth.isLoggedIn) return
+  const target = event.target.closest?.(CLICKABLE)
+  if (!target || target.closest(NAVIGATION)) return
+  event.preventDefault()
+  event.stopPropagation()
+  router.push({ name: 'settings' })
+}
+document.addEventListener('click', redirectToSettings, true)
+
 // Save-the-date popup, decided once the wedding has loaded
 const showImagePopup = ref(false)
 watch(weddingStatus, (status) => {

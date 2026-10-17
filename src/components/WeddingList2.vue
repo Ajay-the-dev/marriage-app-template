@@ -7,6 +7,9 @@
           <i class="fa-solid fa-arrow-left"></i>
         </router-link>
         <h1>Invitations</h1>
+        <router-link :to="{ name: 'help-mobile' }" class="m-icon" aria-label="Help">
+          <i class="fa-regular fa-circle-question"></i>
+        </router-link>
         <button v-if="auth.user" type="button" class="m-avatar" aria-label="Account" @click="accountOpen = true">
           <img v-if="auth.user.photoURL" :src="auth.user.photoURL" alt="" referrerpolicy="no-referrer" />
           <span v-else>{{ initials }}</span>

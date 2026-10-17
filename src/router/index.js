@@ -48,6 +48,19 @@ const routes = [
     component: () => import('@/components/Traditional2.vue'),
     meta: { requiresAuth: true, bare: true }
   },
+  // Guides and site map; open to everyone
+  {
+    path: '/help',
+    name: 'help',
+    component: () => import('@/components/Help.vue'),
+    meta: { bare: true }
+  },
+  {
+    path: '/help/mobile',
+    name: 'help-mobile',
+    component: () => import('@/components/Help2.vue'),
+    meta: { bare: true }
+  },
   {
     path: '/settings',
     name: 'settings',
@@ -81,7 +94,7 @@ const router = createRouter({
 
 // Phones get the mobile list, editor and printed card editor. Links to the desktop ones carry ?view=desktop,
 // which is remembered for the rest of the session.
-const MOBILE_ROUTES = { settings: 'settings-mobile', 'edit-wedding': 'edit-wedding-mobile', traditional: 'traditional-mobile' }
+const MOBILE_ROUTES = { settings: 'settings-mobile', 'edit-wedding': 'edit-wedding-mobile', traditional: 'traditional-mobile', help: 'help-mobile' }
 router.beforeEach((to) => {
   // The editor's live preview stays on the invitation pages
   if (isPreviewFrame && to.meta.bare) return false

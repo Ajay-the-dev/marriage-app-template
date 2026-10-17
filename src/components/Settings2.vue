@@ -69,6 +69,7 @@
             <i class="fa-solid fa-crown"></i>
             <span>{{ limits.label }} · {{ weddingMeta.uploads }} / {{ limits.uploads }} uploads</span>
             <button v-if="planId === 'free'" type="button" class="m-link" @click="showUpgrade(uploadsLeft <= 0 ? 'uploads' : '')">Upgrade</button>
+            <router-link :to="{ name: 'help-mobile' }" class="m-link"><i class="fa-regular fa-circle-question"></i> Help</router-link>
           </div>
         </div>
 

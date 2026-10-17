@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
 // weddings/{id}  = { ownerId, code, config, createdAt, updatedAt, uploads, locked, editLocked, hidden, agreement }
@@ -11,7 +11,7 @@ import { db } from '@/services/firebase'
 // views/{id}     = { count }                       (unique guest visitors)
 // weddings/{id}/versions/{versionId} = { config, savedAt }
 //                  (Plus: the config as it was before each save, newest few kept)
-// weddings/{id}/cards/{cardId} = { name, html, version, versions, paper, border, motif, theme, createdAt, updatedAt }
+// weddings/{id}/cards/{cardId} = { name, html, version, versions, paper, border, motif, motifSize, theme, createdAt, updatedAt }
 //                  (printed invitation cards, kept as HTML; only the owner can read them.
 //                   versions = { [versionId]: html } for each edited wording version, html = the one shown)
 // plans/{uid}    = { plan: 'plus', since, source } (set by the Ko-fi webhook or by hand; missing means Free)
@@ -101,6 +101,12 @@ export const setEditLocked = (id, editLocked) => {
   return updateDoc(weddingRef(id), { editLocked })
 }
 
+// Replaces the printed invitation guests see on the home page (config.hero.printCard); null removes it
+export const setPrintCard = (id, printCard) => {
+  requireDb()
+  return updateDoc(weddingRef(id), { 'config.hero.printCard': printCard ?? deleteField(), updatedAt: serverTimestamp() })
+}
+
 // Hidden invitations show guests a "hidden" page instead of the invitation
 export const setHidden = (id, hidden) => {
   requireDb()
@@ -145,10 +151,14 @@ export const listCards = async (weddingId) => {
   return snap.docs.map((d) => ({ ...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() ?? null, updatedAt: d.data().updatedAt?.toDate() ?? null }))
 }
 
-const CARD_FIELDS = ['name', 'html', 'version', 'paper', 'border', 'motif', 'theme']
+const CARD_FIELDS = ['name', 'html', 'version', 'paper', 'border', 'motif', 'motifSize', 'theme']
 
-// Saves a card (a new one when cardId is empty) and returns its id
-export const saveCard = async (weddingId, cardId, card) => {
+// New cards take the first free id of these; the plan allows the first `cards` of them
+// (Firestore rules can't count documents, so the ids are the limit). Keep in sync with firestore.rules
+export const CARD_SLOTS = ['c1', 'c2', 'c3', 'c4', 'c5']
+
+// Saves a card and returns its id: updates cardId, else creates newId (a free slot)
+export const saveCard = async (weddingId, cardId, card, newId) => {
   requireDb()
   const fields = Object.fromEntries(CARD_FIELDS.map((key) => [key, String(card[key] ?? '')]))
   fields.versions = Object.fromEntries(Object.entries(card.versions || {}).map(([id, html]) => [id, String(html)]))
@@ -156,7 +166,7 @@ export const saveCard = async (weddingId, cardId, card) => {
     await updateDoc(doc(cardsRef(weddingId), cardId), { ...fields, updatedAt: serverTimestamp() })
     return cardId
   }
-  const ref = doc(cardsRef(weddingId))
+  const ref = doc(cardsRef(weddingId), newId)
   await setDoc(ref, { ...fields, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
   return ref.id
 }

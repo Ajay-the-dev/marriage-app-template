@@ -13,6 +13,22 @@
             </div>
           </div>
           <div class="toolbar-actions">
+            <router-link :to="{ name: 'help', query: { topic: 'traditional' } }" class="btn-ghost" title="How to make the traditional PDF">
+              <i class="fa-regular fa-circle-question"></i><span>Help</span>
+            </router-link>
+            <template v-if="pdfView && ownPdf">
+              <span class="save-status">Your PDF is on the home page</span>
+              <button class="btn-ghost" type="button" @click="hideOwnPdf" title="Back to designing a card">
+                <i class="fa-solid fa-pen-ruler"></i><span>Design a card</span>
+              </button>
+              <button class="btn-ghost" type="button" :disabled="!canSave || removingPdf" @click="removeOwnPdf" title="Take the PDF off the home page">
+                <i class="fa-solid" :class="removingPdf ? 'fa-spinner fa-spin' : 'fa-trash'"></i><span>Remove PDF</span>
+              </button>
+              <a class="btn-primary" :href="ownPdf.url" target="_blank" rel="noopener">
+                <i class="fa-solid fa-up-right-from-square"></i><span>Open PDF</span>
+              </a>
+            </template>
+            <template v-else>
             <span v-if="config" class="save-status" :class="{ dirty: isDirty || !cardId }">{{ statusText }}</span>
             <button class="btn-ghost" type="button" @click="resetText" :disabled="!config" title="Start this version again from the invitation's details">
               <i class="fa-solid fa-rotate-left"></i><span>Reset text</span>
@@ -24,6 +40,7 @@
               <i class="fa-solid" :class="exporting ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
               <span>{{ exporting ? 'Preparing…' : 'Download PDF' }}</span>
             </button>
+            </template>
           </div>
         </div>
       </header>
@@ -39,7 +56,20 @@
         <div class="t-layout">
           <!-- ── Editor ── -->
           <div class="t-editor">
-            <div class="format-bar" role="toolbar" aria-label="Text formatting">
+            <!-- The uploaded PDF, shown in place of the card -->
+            <div v-if="pdfView && ownPdf" class="pdf-preview">
+              <div class="pdf-preview-bar">
+                <i class="fa-solid fa-file-pdf"></i>
+                <strong>{{ ownPdf.name || 'invitation.pdf' }}</strong>
+                <span>Guests see this on the home page</span>
+              </div>
+              <iframe :src="ownPdf.url" :title="ownPdf.name || 'Invitation PDF'"></iframe>
+              <p class="editor-hint">
+                <i class="fa-solid fa-circle-info"></i> Not showing? <a :href="ownPdf.url" target="_blank" rel="noopener">Open the PDF in a new tab</a>.
+              </p>
+            </div>
+
+            <div v-show="!pdfView" class="format-bar" role="toolbar" aria-label="Text formatting">
               <div class="version-row">
                 <span class="version-label">Versions</span>
                 <div ref="versionPillsEl" class="version-pills" role="tablist" aria-label="Wording versions">
@@ -130,14 +160,14 @@
               </div>
             </div>
 
-            <p class="editor-hint">
+            <p v-show="!pdfView" class="editor-hint">
               <i class="fa-solid fa-pen-nib"></i> Click on the card to edit its text.
             </p>
-            <p v-if="overflowing" class="overflow-warning">
+            <p v-if="overflowing && !pdfView" class="overflow-warning">
               <i class="fa-solid fa-triangle-exclamation"></i> The text doesn't fit inside the border. Shorten it, use smaller styles or pick a larger paper.
             </p>
 
-            <div ref="stage" class="card-stage">
+            <div v-show="!pdfView" ref="stage" class="card-stage">
               <PrintCard ref="printCard" :card="card" :card-style="cardStyle" :card-px="cardPx" :scale="scale" :exporting="exporting" @input="onInput" @paste="onPaste" @focus="updateState" />
             </div>
           </div>
@@ -146,7 +176,7 @@
           <aside class="t-design">
             <div class="panel">
               <h2>Saved cards</h2>
-              <label class="field">
+              <label v-show="!pdfView" class="field">
                 <span>Card name</span>
                 <input v-model="card.name" type="text" maxlength="60" placeholder="eg. English, Malayalam" />
               </label>
@@ -165,15 +195,41 @@
                 </li>
               </ul>
               <p v-else class="card-empty">{{ weddingId ? 'No saved cards yet. Save this one to keep it with the invitation.' : 'Open this page from one of your invitations to save cards.' }}</p>
+              <p v-if="weddingId" class="card-limit" :class="{ full: !canAddCard }">
+                <i class="fa-solid" :class="canAddCard ? 'fa-layer-group' : 'fa-lock'"></i>
+                {{ cards.length }} / {{ cardLimit }} cards saved{{ canAddCard ? '' : ' · limit reached' }}
+              </p>
               <div class="pill-row">
-                <button type="button" class="pill" @click="newCard"><i class="fa-solid fa-plus"></i> New card</button>
-                <button type="button" class="pill" :disabled="!canSave || saving || !cardId" title="Save as a separate card, eg. for another language" @click="saveCurrent(true)">
+                <button type="button" class="pill" :disabled="!!weddingId && !canAddCard" :title="weddingId && !canAddCard ? limitText : 'Start a new card'" @click="newCard"><i class="fa-solid fa-plus"></i> New card</button>
+                <button type="button" class="pill" :disabled="!canSave || saving || !cardId || !canAddCard" :title="canAddCard ? 'Save as a separate card, eg. for another language' : limitText" @click="saveCurrent(true)">
                   <i class="fa-regular fa-copy"></i> Save as copy
                 </button>
               </div>
             </div>
 
-            <div class="panel">
+            <div v-if="weddingId" class="panel">
+              <h2>Your own PDF</h2>
+              <p class="card-empty">Already have an invitation PDF? Upload it to show guests on the home page instead of a designed card (up to 10 MB, counts as one upload).</p>
+              <a v-if="ownPdf" :href="ownPdf.url" target="_blank" rel="noopener" class="own-pdf">
+                <i class="fa-solid fa-file-pdf"></i>
+                <span><strong>{{ ownPdf.name || 'invitation.pdf' }}</strong><small>Shown on the home page</small></span>
+              </a>
+              <div v-if="ownPdf && !pdfView" class="pill-row own-pdf-view">
+                <button type="button" class="pill" @click="showOwnPdf"><i class="fa-regular fa-eye"></i> Preview PDF</button>
+              </div>
+              <div class="pill-row">
+                <button type="button" class="pill" :disabled="!canSave || uploadingPdf" :title="canSave ? '' : saveHint" @click="$refs.pdfInput.click()">
+                  <i class="fa-solid" :class="uploadingPdf ? 'fa-spinner fa-spin' : 'fa-file-arrow-up'"></i>
+                  {{ uploadingPdf ? 'Uploading…' : ownPdf ? 'Replace PDF' : 'Upload PDF' }}
+                </button>
+                <button v-if="ownPdf" type="button" class="pill danger" :disabled="!canSave || removingPdf || uploadingPdf" @click="removeOwnPdf">
+                  <i class="fa-solid" :class="removingPdf ? 'fa-spinner fa-spin' : 'fa-trash'"></i> Remove PDF
+                </button>
+              </div>
+              <input ref="pdfInput" type="file" accept="application/pdf" hidden @change="uploadOwnPdf" />
+            </div>
+
+            <div v-show="!pdfView" class="panel">
               <h2>Paper</h2>
               <div class="choice-grid">
                 <button
@@ -191,7 +247,7 @@
               </div>
             </div>
 
-            <div class="panel">
+            <div v-show="!pdfView" class="panel">
               <h2>Border</h2>
               <div class="pill-row">
                 <button v-for="border in BORDERS" :key="border.id" type="button" class="pill" :class="{ active: card.border === border.id }" @click="card.border = border.id">
@@ -200,8 +256,26 @@
               </div>
             </div>
 
-            <div class="panel">
-              <h2>Motif</h2>
+            <div v-show="!pdfView" class="panel">
+              <div class="motif-head" :class="{ off: card.motif === 'none' }">
+                <h2><i class="fa-solid fa-spa"></i> Motif</h2>
+                <div class="size-seg" role="radiogroup" aria-label="Motif size">
+                  <button
+                    v-for="s in MOTIF_SIZES"
+                    :key="s.id"
+                    type="button"
+                    role="radio"
+                    :class="{ active: (card.motifSize || 'm') === s.id }"
+                    :aria-checked="(card.motifSize || 'm') === s.id"
+                    :aria-label="s.label"
+                    :title="s.label"
+                    :disabled="card.motif === 'none'"
+                    @click="card.motifSize = s.id"
+                  >
+                    <span class="size-dot" :style="{ '--s': s.scale }"></span>{{ s.short }}
+                  </button>
+                </div>
+              </div>
               <div class="pill-row">
                 <button v-for="motif in MOTIFS" :key="motif.id" type="button" class="pill" :class="{ active: card.motif === motif.id }" @click="card.motif = motif.id">
                   {{ motif.label }}
@@ -209,7 +283,7 @@
               </div>
             </div>
 
-            <div class="panel">
+            <div v-show="!pdfView" class="panel">
               <h2>Colours &amp; fonts</h2>
               <div class="theme-list">
                 <button
@@ -247,7 +321,7 @@ import Basic from "@/views/Basic.vue";
 import PrintCard from "@/components/PrintCard.vue";
 import { themes } from "@/config/themes";
 import { CARD_VERSIONS } from "@/config/cardWording";
-import { PAPERS, BORDERS, MOTIFS, fontFamilyName } from "@/utils/traditionalCard";
+import { PAPERS, BORDERS, MOTIFS, MOTIF_SIZES, fontFamilyName } from "@/utils/traditionalCard";
 import { BLOCKS, useTraditionalEditor } from "@/composables/traditionalEditor";
 
 const {
@@ -257,6 +331,8 @@ const {
   fontGroups, currentFont, fontMenuEl, fontMenuOpen, toggleFontMenu, applyFont,
   editedVersions, versionPillsEl, switchVersion, resetText,
   cards, cardId, saving, deletingId, isDirty, canSave, saveHint, statusText, formatDate,
+  cardLimit, canAddCard, limitText,
+  ownPdf, uploadingPdf, uploadOwnPdf, pdfView, showOwnPdf, hideOwnPdf, removingPdf, removeOwnPdf,
   openCard, newCard, saveCurrent, removeCard,
   exporting, downloadPdf,
 } = useTraditionalEditor();
@@ -622,7 +698,157 @@ const {
   }
 }
 
+// Motif title bar: the heading and its size control as one strip along the panel's top
+.motif-head {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  margin: -16px -16px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold-light) 45%, transparent);
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gold-light) 22%, #fff), #fff 70%);
+  overflow: hidden;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 12px 16px;
+
+    i { font-size: 0.8rem; color: var(--gold-dark); }
+  }
+
+  &.off .size-seg { opacity: 0.45; }
+}
+
+// Sizes as one joined control; each dot grows with its size
+.size-seg {
+  display: flex;
+  border-left: 1px solid color-mix(in srgb, var(--gold-light) 45%, transparent);
+
+  button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 3px;
+    min-width: 36px;
+    padding: 6px 6px 5px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s, color 0.15s;
+
+    & + button { border-left: 1px solid color-mix(in srgb, var(--gold-light) 30%, transparent); }
+    &:hover:not(:disabled) { background: color-mix(in srgb, var(--gold-light) 25%, transparent); }
+    &:disabled { cursor: not-allowed; }
+
+    // Underline marks the picked size, sitting on the strip's bottom edge
+    &::after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      bottom: 0;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+      background: var(--gold-dark);
+      transform: scaleX(0);
+      transition: transform 0.2s ease;
+    }
+
+    &.active {
+      background: color-mix(in srgb, var(--gold-light) 40%, transparent);
+      color: var(--dark);
+      &::after { transform: scaleX(1); }
+      .size-dot { background: var(--gold-dark); border-color: var(--gold-dark); }
+    }
+  }
+}
+
+.size-dot {
+  width: calc(14px * var(--s));
+  height: calc(14px * var(--s));
+  border: 1.5px solid var(--gold);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--gold-light) 50%, transparent);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+/* ── Your own PDF ── */
+.pdf-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  iframe {
+    width: 100%;
+    height: min(78vh, 900px);
+    border: 1px solid color-mix(in srgb, var(--gold-light) 50%, transparent);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 18px 50px rgba(61, 44, 20, 0.12);
+  }
+
+  a { color: var(--gold-dark); }
+}
+
+.pdf-preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 0.8rem;
+  color: var(--text);
+
+  i { color: var(--gold-dark); }
+  strong { font-weight: 600; color: var(--dark); }
+  span { opacity: 0.7; }
+}
+
+.own-pdf-view { margin-bottom: 8px; }
+
+.pill.danger {
+  i { color: #b4472f; }
+  &:hover:not(:disabled) { background: #fbe9e4; border-color: #e9b7aa; }
+}
+
+.own-pdf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--gold-light) 60%, transparent);
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
+
+  i { font-size: 1.1rem; color: var(--gold-dark); }
+  span { display: flex; flex-direction: column; min-width: 0; }
+  strong { font-size: 0.8rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  small { font-size: 0.68rem; opacity: 0.7; }
+  &:hover { background: var(--blush); }
+}
+
 /* ── Saved cards ── */
+.card-limit {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  color: var(--text);
+  opacity: 0.75;
+
+  i { margin-right: 4px; color: var(--gold-dark); }
+  &.full { opacity: 1; color: var(--gold-dark); font-weight: 500; }
+}
+
 .field {
   display: flex;
   flex-direction: column;

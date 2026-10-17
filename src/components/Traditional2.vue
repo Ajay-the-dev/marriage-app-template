@@ -10,9 +10,12 @@
           <h1>Printed card</h1>
           <span v-if="config" class="m-status" :class="!cardId ? '' : isDirty ? 'warn' : 'ok'"><i class="m-dot"></i>{{ card.name || 'Untitled card' }} · {{ statusText }}</span>
         </div>
-        <button type="button" class="m-icon" aria-label="Start this version again" :disabled="!config" @click="resetText">
+        <button v-show="!pdfView" type="button" class="m-icon" aria-label="Start this version again" :disabled="!config" @click="resetText">
           <i class="fa-solid fa-rotate-left"></i>
         </button>
+        <router-link :to="{ name: 'help-mobile', query: { topic: 'traditional' } }" class="m-icon" aria-label="Help">
+          <i class="fa-regular fa-circle-question"></i>
+        </router-link>
         <button type="button" class="m-icon" aria-label="Saved cards" :disabled="!config" @click="sheet = 'cards'">
           <i class="fa-solid fa-layer-group"></i>
         </button>
@@ -25,7 +28,13 @@
 
       <template v-else>
         <!-- Wording versions -->
-        <nav ref="versionPillsEl" class="m-versions" role="tablist" aria-label="Wording versions">
+        <!-- The uploaded PDF, shown in place of the card -->
+        <div v-if="pdfView && ownPdf" class="m-pdf">
+          <p class="m-hint"><i class="fa-solid fa-file-pdf"></i> {{ ownPdf.name || 'invitation.pdf' }} · guests see this on the home page</p>
+          <iframe :src="ownPdf.url" :title="ownPdf.name || 'Invitation PDF'"></iframe>
+        </div>
+
+        <nav v-show="!pdfView" ref="versionPillsEl" class="m-versions" role="tablist" aria-label="Wording versions">
           <button
             v-for="v in CARD_VERSIONS"
             :key="v.id"
@@ -41,7 +50,7 @@
           </button>
         </nav>
 
-        <div v-if="overflowing" class="m-banners">
+        <div v-if="overflowing && !pdfView" class="m-banners">
           <div class="m-banner warn">
             <i class="fa-solid fa-triangle-exclamation"></i>
             <span>The text doesn't fit inside the border. Shorten it or pick a larger paper.</span>
@@ -49,7 +58,7 @@
           </div>
         </div>
 
-        <div ref="stage" class="m-stage">
+        <div v-show="!pdfView" ref="stage" class="m-stage">
           <PrintCard
             ref="printCard"
             :card="card"
@@ -63,7 +72,7 @@
             @blur="onEditorBlur"
           />
         </div>
-        <p class="m-hint"><i class="fa-solid fa-hand-pointer"></i> Tap the card to edit its text. Pinch to zoom in.</p>
+        <p v-show="!pdfView" class="m-hint"><i class="fa-solid fa-hand-pointer"></i> Tap the card to edit its text. Pinch to zoom in.</p>
       </template>
 
       <!-- Formatting, above the keyboard while editing -->
@@ -126,6 +135,14 @@
       </div>
 
       <!-- Bottom bar -->
+      <footer v-else-if="config && pdfView && ownPdf" class="m-bottom">
+        <button type="button" class="m-btn" @click="hideOwnPdf">
+          <i class="fa-solid fa-pen-ruler"></i> Design a card
+        </button>
+        <a class="m-btn primary" :href="ownPdf.url" target="_blank" rel="noopener">
+          <i class="fa-solid fa-up-right-from-square"></i> Open PDF
+        </a>
+      </footer>
       <footer v-else-if="config" class="m-bottom">
         <button type="button" class="m-btn" @click="openDesign()">
           <i class="fa-solid fa-swatchbook"></i> Design
@@ -178,6 +195,18 @@
               </div>
 
               <div v-else-if="designTab === 'motif'" class="m-choice-list">
+                <div class="m-size-pills" role="radiogroup" aria-label="Motif size">
+                  <button
+                    v-for="s in MOTIF_SIZES"
+                    :key="s.id"
+                    type="button"
+                    role="radio"
+                    :class="{ active: (card.motifSize || 'm') === s.id }"
+                    :aria-checked="(card.motifSize || 'm') === s.id"
+                    :disabled="card.motif === 'none'"
+                    @click="card.motifSize = s.id"
+                  >{{ s.label }}</button>
+                </div>
                 <button v-for="mo in MOTIFS" :key="mo.id" type="button" class="m-sheet-item" :class="{ active: card.motif === mo.id }" @click="card.motif = mo.id">
                   <i class="fa-solid" :class="card.motif === mo.id ? 'fa-circle-check' : 'fa-circle'"></i>{{ mo.label }}
                 </button>
@@ -239,12 +268,28 @@
               </p>
             </div>
 
-            <button type="button" class="m-sheet-item" @click="newCard() && (sheet = null)">
+            <p v-if="weddingId" class="m-empty">
+              <i class="fa-solid" :class="canAddCard ? 'fa-layer-group' : 'fa-lock'"></i>
+              {{ cards.length }} / {{ cardLimit }} cards saved{{ canAddCard ? '' : ` · ${limitText}` }}
+            </p>
+            <button type="button" class="m-sheet-item" :disabled="!!weddingId && !canAddCard" @click="newCard() && (sheet = null)">
               <i class="fa-solid fa-plus"></i>New card
             </button>
-            <button type="button" class="m-sheet-item" :disabled="!canSave || saving || !cardId" @click="saveCurrent(true); sheet = null">
+            <button type="button" class="m-sheet-item" :disabled="!canSave || saving || !cardId || !canAddCard" @click="saveCurrent(true); sheet = null">
               <i class="fa-regular fa-copy"></i>Save as copy
             </button>
+            <template v-if="weddingId">
+              <button v-if="ownPdf" type="button" class="m-sheet-item" :class="{ active: pdfView }" @click="showOwnPdf(); sheet = null">
+                <i class="fa-solid fa-file-pdf"></i>Your PDF · {{ ownPdf.name || 'invitation.pdf' }}
+              </button>
+              <button type="button" class="m-sheet-item" :disabled="!canSave || uploadingPdf" @click="$refs.pdfInput.click()">
+                <i class="fa-solid" :class="uploadingPdf ? 'fa-spinner fa-spin' : 'fa-file-arrow-up'"></i>{{ uploadingPdf ? 'Uploading…' : ownPdf ? 'Replace your PDF' : 'Upload your own PDF' }}
+              </button>
+              <button v-if="ownPdf" type="button" class="m-sheet-item" :disabled="!canSave || removingPdf || uploadingPdf" @click="removeOwnPdf(); sheet = null">
+                <i class="fa-solid" :class="removingPdf ? 'fa-spinner fa-spin' : 'fa-trash'"></i>Remove your PDF
+              </button>
+              <input ref="pdfInput" type="file" accept="application/pdf" hidden @change="uploadOwnPdf" />
+            </template>
             <router-link :to="{ name: 'traditional', query: { ...route.query, view: 'desktop' } }" class="m-sheet-item">
               <i class="fa-solid fa-display"></i>Desktop editor
             </router-link>
@@ -263,7 +308,7 @@ import Basic from "@/views/Basic.vue";
 import PrintCard from "@/components/PrintCard.vue";
 import { themes } from "@/config/themes";
 import { CARD_VERSIONS } from "@/config/cardWording";
-import { PAPERS, BORDERS, MOTIFS } from "@/utils/traditionalCard";
+import { PAPERS, BORDERS, MOTIFS, MOTIF_SIZES } from "@/utils/traditionalCard";
 import { BLOCKS, useTraditionalEditor } from "@/composables/traditionalEditor";
 
 const DESIGN_TABS = [
@@ -286,6 +331,8 @@ const {
   fontGroups, currentFont, isCurrentFont, fontMenuUsed, applyFont,
   editedVersions, versionPillsEl, switchVersion, resetText,
   cards, cardId, saving, deletingId, isDirty, canSave, statusText, formatDate,
+  cardLimit, canAddCard, limitText,
+  ownPdf, uploadingPdf, uploadOwnPdf, pdfView, showOwnPdf, hideOwnPdf, removingPdf, removeOwnPdf,
   openCard, newCard, saveCurrent, removeCard,
   exporting, downloadPdf,
 } = useTraditionalEditor({ back: { editor: "edit-wedding-mobile", list: "settings-mobile" } });
@@ -540,6 +587,24 @@ onBeforeUnmount(() => {
   margin: 16px 12px 0;
 }
 
+.m-pdf {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 12px 12px;
+
+  iframe {
+    flex: 1;
+    width: 100%;
+    min-height: 60vh;
+    border: 0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  }
+}
+
 .m-hint {
   margin: 12px 16px 0;
   font-size: 0.75rem;
@@ -645,6 +710,7 @@ onBeforeUnmount(() => {
 }
 
 .m-btn {
+  text-decoration: none;
   min-height: 46px;
   display: inline-flex;
   align-items: center;
@@ -755,6 +821,27 @@ onBeforeUnmount(() => {
   &:hover, &:active { background: var(--subtle); }
   &.active i { color: var(--accent); }
   &:disabled { opacity: 0.5; }
+}
+
+// Motif size, above the motif list
+.m-size-pills {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px 10px;
+
+  button {
+    flex: 1;
+    min-height: 36px;
+    border: 1px solid var(--line, color-mix(in srgb, var(--muted) 30%, transparent));
+    border-radius: 999px;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    &.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    &:disabled { opacity: 0.5; }
+  }
 }
 
 .m-sheet-enter-active,

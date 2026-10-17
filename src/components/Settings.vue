@@ -1163,8 +1163,9 @@ import Basic from "@/views/Basic.vue";
 import VersionHistory from "@/components/VersionHistory.vue";
 import HeroSyncDialog from "@/components/HeroSyncDialog.vue";
 import { useWeddingStore, weddingCode, weddingStatus, weddingMeta } from "@/stores/wedding";
-import { listCards, recordUpload, setEditLocked, setHidden } from "@/services/weddings";
-import { printCardCopy } from "@/utils/traditionalCard";
+import { recordUpload, setEditLocked, setHidden } from "@/services/weddings";
+import { usePrintCardChoice, PDF_CHOICE } from "@/composables/printCardChoice";
+import { HERO_COLOR_PICKERS, NAV_ICONS, COUNTDOWN_EXAMPLES } from "@/config/editorOptions";
 import { useMyPlan } from "@/composables/plan";
 import { getPlan, overLimits } from "@/config/plans";
 import { showUpgrade } from "@/composables/upgrade";
@@ -1445,40 +1446,7 @@ const resetOverlay = () => delete wedding.hero.overlayOpacity;
 
 // Overlay and text colours: a role from the current theme (stays in sync if the theme changes)
 // or a custom #hex. The first role is the theme default and clears the field.
-const heroColorPickers = [
-  {
-    field: "overlayColor",
-    label: "Overlay colour",
-    hint: "Light colours can make the text harder to read",
-    roles: [
-      { id: "overlay", label: "Theme default" },
-      { id: "dark", label: "Dark" },
-      { id: "text", label: "Text" },
-      { id: "shadow", label: "Shadow" },
-      { id: "gold-dark", label: "Accent deep" },
-      { id: "gold", label: "Accent" },
-      { id: "sage", label: "Muted" },
-      { id: "blush", label: "Blush" },
-      { id: "cream", label: "Cream" },
-    ],
-  },
-  {
-    field: "textColor",
-    label: "Text colour",
-    hint: "Names, date, time, place and countdown on the home page",
-    roles: [
-      { id: "gold", label: "Theme default" },
-      { id: "gold-light", label: "Accent light" },
-      { id: "card", label: "White" },
-      { id: "cream", label: "Cream" },
-      { id: "blush", label: "Blush" },
-      { id: "sage", label: "Muted" },
-      { id: "gold-dark", label: "Accent deep" },
-      { id: "text", label: "Text" },
-      { id: "dark", label: "Dark" },
-    ],
-  },
-];
+const heroColorPickers = HERO_COLOR_PICKERS;
 const themeColors = computed(() => getTheme(wedding.theme).colors);
 const isHexColor = (v) => /^#[0-9a-f]{6}$/i.test(v || "");
 const pickedColor = (p) => wedding.hero[p.field] || p.roles[0].id;
@@ -1565,23 +1533,10 @@ const isHeroFrom = (s) =>
   && (!s.timeText || wedding.hero.timeText === s.timeText)
   && (!s.locationText || wedding.hero.locationText === s.locationText);
 
-const countdownExamples = { days: "Days", hours: "Hrs", minutes: "Min", seconds: "Sec" };
+const countdownExamples = COUNTDOWN_EXAMPLES;
 
 // Icons offered in the navigation icon picker (Font Awesome 6 free, solid)
-const navIcons = [
-  "fa-house", "fa-house-chimney", "fa-heart", "fa-heart-circle-check", "fa-hand-holding-heart",
-  "fa-ring", "fa-gem", "fa-crown", "fa-infinity", "fa-dove",
-  "fa-calendar", "fa-calendar-check", "fa-calendar-days", "fa-calendar-day", "fa-clock",
-  "fa-list-check", "fa-clipboard-list", "fa-timeline", "fa-route", "fa-compass",
-  "fa-user-friends", "fa-users", "fa-people-group", "fa-person-dress", "fa-hands-holding",
-  "fa-handshake", "fa-face-smile", "fa-images", "fa-image", "fa-camera",
-  "fa-camera-retro", "fa-photo-film", "fa-video", "fa-book-open", "fa-book",
-  "fa-feather", "fa-pen-fancy", "fa-scroll", "fa-envelope", "fa-envelope-open-text",
-  "fa-location-dot", "fa-map-location-dot", "fa-church", "fa-place-of-worship", "fa-om",
-  "fa-champagne-glasses", "fa-wine-glass", "fa-cake-candles", "fa-gift", "fa-gifts",
-  "fa-utensils", "fa-music", "fa-star", "fa-sun", "fa-moon",
-  "fa-seedling", "fa-leaf", "fa-spa", "fa-wand-magic-sparkles", "fa-hotel",
-];
+const navIcons = NAV_ICONS;
 const iconLabel = (icon) => icon.replace(/^fa-/, "").replace(/-/g, " ");
 const openIconPicker = ref("");
 const closeIconPicker = () => { openIconPicker.value = ""; };
@@ -1960,43 +1915,9 @@ const uploadBackground = async (e) => {
   flash("Background uploaded, click Save to keep it", "warn");
 };
 
-// Printed invitation shown on the home page: a copy of one saved card, kept in the config
-// so guests can see it (the cards themselves are private to the owner)
-const printCards = ref([]);
-const printCardsError = ref("");
-const loadPrintCards = async () => {
-  try {
-    printCards.value = await listCards(weddingId);
-  } catch (error) {
-    printCardsError.value = `Could not load your printed cards: ${error.message}`;
-  }
-};
-const attachPrintCard = (c) => {
-  wedding.hero.printCard = printCardCopy(c);
-};
-// A PDF uploaded in the card editor instead of a designed card: { type: "pdf", url, name }.
-// Kept while another card is picked, so switching back doesn't need a new upload.
-const PDF_CHOICE = "__pdf";
-const lastPdf = ref(null);
-const printPdf = computed(() => (wedding.hero.printCard?.type === "pdf" ? wedding.hero.printCard : lastPdf.value));
-
-const printCardChoice = computed({
-  get: () => (wedding.hero.printCard?.type === "pdf" ? PDF_CHOICE : wedding.hero.printCard?.id || ""),
-  set: (id) => {
-    if (wedding.hero.printCard?.type === "pdf") lastPdf.value = wedding.hero.printCard;
-    const c = printCards.value.find((x) => x.id === id);
-    if (id === PDF_CHOICE && printPdf.value) wedding.hero.printCard = { ...printPdf.value };
-    else if (c) attachPrintCard(c);
-    else delete wedding.hero.printCard;
-  },
-});
-const printCardMissing = computed(() =>
-  !!wedding.hero.printCard?.id && !printCards.value.some((c) => c.id === wedding.hero.printCard.id));
-// The attached card, when it was saved again after being attached
-const printCardOutdated = computed(() => {
-  const c = printCards.value.find((x) => x.id === wedding.hero.printCard?.id);
-  return c && (c.updatedAt?.getTime() ?? 0) > (wedding.hero.printCard.savedAt || 0) ? c : null;
-});
+// Printed invitation shown on the home page (a saved card or an uploaded PDF)
+const { printCards, printCardsError, loadPrintCards, attachPrintCard, printPdf, printCardChoice, printCardMissing, printCardOutdated } =
+  usePrintCardChoice(wedding, weddingId);
 
 const importInput = ref(null);
 const importFile = async (e) => {

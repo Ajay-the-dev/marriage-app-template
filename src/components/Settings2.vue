@@ -142,6 +142,10 @@
                     </div>
                   </div>
                   <label class="m-field">
+                    <span>Role label</span>
+                    <input v-model="wedding[key].roleLabel" maxlength="30" :placeholder="key === 'groom' ? 'The Groom' : 'The Bride'" autocomplete="off" />
+                  </label>
+                  <label class="m-field">
                     <span>Profession / passion</span>
                     <input v-model="wedding[key].profession" maxlength="60" :list="`${key}-professions`" autocomplete="off" :placeholder="examples[key].profession" />
                     <datalist :id="`${key}-professions`">
@@ -289,6 +293,12 @@
                     <option v-for="t in countdownStyles" :key="t.id" :value="t.id">{{ t.label }}</option>
                   </select>
                 </label>
+                <div v-if="wedding.hero.countdown.enabled" class="m-row four">
+                  <label v-for="(label, unit) in wedding.hero.countdown.labels" :key="unit" class="m-field">
+                    <span>{{ unit }}</span>
+                    <input v-model="wedding.hero.countdown.labels[unit]" maxlength="12" :placeholder="COUNTDOWN_EXAMPLES[unit]" />
+                  </label>
+                </div>
 
                 <h3>Background</h3>
                 <div class="m-scroller">
@@ -319,8 +329,74 @@
                     @click="wedding.hero.backgroundImage = src"
                   >
                     <img :src="src.replace('/bg-home/', '/bg-home/thumbs/')" alt="" loading="lazy" />
+                    <span v-if="unsplashCredit(src)" class="m-credit">{{ unsplashCredit(src).photographer }}</span>
                   </button>
                 </div>
+                <small v-if="backgroundCredit" class="m-hint">Photo by {{ backgroundCredit.photographer }} on Unsplash</small>
+
+                <!-- Overlay and text colour over the background -->
+                <div class="m-field m-range">
+                  <span>
+                    Overlay darkness <strong>{{ overlayValue }}%</strong>
+                    <button v-if="typeof wedding.hero.overlayOpacity === 'number'" type="button" class="m-reset" @click="resetOverlay">Reset</button>
+                  </span>
+                  <input v-model.number="overlayValue" type="range" min="0" max="100" step="5" aria-label="Overlay darkness" />
+                </div>
+                <div v-for="p in HERO_COLOR_PICKERS" :key="p.field" class="m-field">
+                  <span>{{ p.label }}</span>
+                  <div class="m-swatches" role="radiogroup" :aria-label="p.label">
+                    <button
+                      v-for="r in p.roles"
+                      :key="r.id"
+                      type="button"
+                      role="radio"
+                      class="m-swatch"
+                      :class="{ selected: pickedColor(p) === r.id }"
+                      :aria-checked="pickedColor(p) === r.id"
+                      :aria-label="r.label"
+                      :style="{ background: themeColors[r.id] }"
+                      @click="pickHeroColor(p, r.id)"
+                    ></button>
+                    <label
+                      class="m-swatch m-swatch-custom"
+                      :class="{ selected: isHexColor(wedding.hero[p.field]) }"
+                      :style="isHexColor(wedding.hero[p.field]) ? { background: wedding.hero[p.field] } : {}"
+                      aria-label="Custom colour"
+                    >
+                      <i v-if="!isHexColor(wedding.hero[p.field])" class="fa-solid fa-eye-dropper"></i>
+                      <input
+                        type="color"
+                        :value="isHexColor(wedding.hero[p.field]) ? wedding.hero[p.field] : themeColors[p.roles[0].id]"
+                        @input="pickHeroColor(p, $event.target.value)"
+                      />
+                    </label>
+                  </div>
+                  <small class="m-hint">{{ p.hint }}</small>
+                </div>
+
+                <h3>Printed invitation</h3>
+                <label class="m-field">
+                  <span>Card guests can view and download</span>
+                  <select v-model="printCardChoice" :disabled="!printCards.length && !printPdf">
+                    <option value="">{{ printCards.length || printPdf ? 'None' : 'No saved cards yet' }}</option>
+                    <option v-if="printPdf" :value="PDF_CHOICE">Your PDF · {{ printPdf.name || 'invitation.pdf' }}</option>
+                    <option v-for="c in printCards" :key="c.id" :value="c.id">{{ c.name || 'Untitled card' }}</option>
+                    <option v-if="printCardMissing" :value="wedding.hero.printCard.id">{{ wedding.hero.printCard.name || 'Untitled card' }} (deleted)</option>
+                  </select>
+                  <small v-if="printCardsError" class="m-hint">{{ printCardsError }}</small>
+                </label>
+                <div class="m-chips">
+                  <button v-if="printCardOutdated" type="button" class="m-chip" @click="attachPrintCard(printCardOutdated)">
+                    <i class="fa-solid fa-rotate"></i> Use latest changes
+                  </button>
+                  <router-link :to="{ name: 'traditional-mobile', query: { id: weddingId } }" class="m-chip">
+                    <i class="fa-solid fa-pen-ruler"></i> {{ printCards.length || printPdf ? 'Edit cards' : 'Design a card' }}
+                  </router-link>
+                  <a v-if="printPdf" :href="printPdf.url" target="_blank" rel="noopener" class="m-chip">
+                    <i class="fa-solid fa-up-right-from-square"></i> Open your PDF
+                  </a>
+                </div>
+                <small class="m-hint">Design a card or upload your own PDF in the card editor.</small>
               </template>
 
               <!-- Events -->
@@ -336,6 +412,16 @@
                     <option v-for="tz in timeZones" :key="tz" :value="tz">{{ tz.replace(/_/g, ' ') }}</option>
                   </select>
                 </label>
+                <div class="m-row">
+                  <label class="m-field">
+                    <span>Map button</span>
+                    <input v-model="wedding.eventsPage.mapButtonLabel" maxlength="30" placeholder="View on Map" />
+                  </label>
+                  <label class="m-field">
+                    <span>Calendar button</span>
+                    <input v-model="wedding.eventsPage.calendarButtonLabel" maxlength="30" placeholder="Add to Calendar" />
+                  </label>
+                </div>
                 <div class="m-item" v-for="(event, i) in wedding.eventsPage.events" :key="i">
                   <div class="m-item-head">
                     <strong>{{ event.name || `Event ${i + 1}` }}</strong>
@@ -388,6 +474,10 @@
                   <SuggestInput v-model="wedding.storyPage.subTitle" :options="storySubTitles" label="Sub title" />
                   <SuggestInput v-model="wedding.storyPage.title" :options="storyTitles" label="Title" />
                 </div>
+                <label class="m-field">
+                  <span>Year label</span>
+                  <input v-model="wedding.storyPage.yearLabel" maxlength="20" placeholder="Year:" />
+                </label>
                 <div class="m-item" v-for="(milestone, i) in wedding.storyPage.milestones" :key="i">
                   <div class="m-item-head">
                     <strong>{{ milestone.name || `Milestone ${i + 1}` }}</strong>
@@ -496,9 +586,63 @@
                     {{ text }}
                   </button>
                 </div>
+                <label class="m-switch">
+                  <span>Auto download the printed invitation on a guest's first visit</span>
+                  <input type="checkbox" v-model="wedding.site.autoDownload" :disabled="!wedding.hero.printCard" />
+                </label>
+                <small v-if="!wedding.hero.printCard" class="m-hint">Choose a printed invitation in Home page to use this.</small>
                 <router-link :to="{ name: 'edit-wedding', params: { id: weddingId }, query: { view: 'desktop' } }" class="m-link-row">
-                  <i class="fa-solid fa-sliders"></i> More options in the full editor
+                  <i class="fa-solid fa-display"></i> Open the desktop editor
                 </router-link>
+              </template>
+
+              <!-- Navigation (Plus) -->
+              <template v-else-if="s.id === 'navigation'">
+                <div v-if="!limits.editNavigation" class="m-banner">
+                  <i class="fa-solid fa-crown"></i>
+                  <span>Plus lets you change the menu's labels and icons.</span>
+                  <button type="button" class="m-link" @click="showUpgrade('editNavigation')">Upgrade</button>
+                </div>
+                <fieldset class="m-nav" :disabled="!limits.editNavigation">
+                  <div v-for="(item, key) in wedding.navigation" :key="key" class="m-item">
+                    <div class="m-item-head">
+                      <button
+                        type="button"
+                        class="m-nav-icon"
+                        :class="{ open: openIconPicker === key }"
+                        :aria-expanded="openIconPicker === key"
+                        :aria-label="`Icon for ${key}`"
+                        @click="openIconPicker = openIconPicker === key ? '' : key"
+                      >
+                        <i class="fa-solid" :class="item.icon"></i>
+                        <i class="fa-solid fa-chevron-down m-nav-caret"></i>
+                      </button>
+                      <strong>{{ key }}</strong>
+                    </div>
+                    <div v-if="openIconPicker === key" class="m-icon-grid" role="radiogroup" :aria-label="`Icons for ${key}`">
+                      <button
+                        v-for="icon in NAV_ICONS"
+                        :key="icon"
+                        type="button"
+                        role="radio"
+                        :class="{ selected: item.icon === icon }"
+                        :aria-checked="item.icon === icon"
+                        :aria-label="icon.replace(/^fa-/, '').replace(/-/g, ' ')"
+                        @click="item.icon = icon; openIconPicker = ''"
+                      ><i class="fa-solid" :class="icon"></i></button>
+                    </div>
+                    <div class="m-row">
+                      <label class="m-field">
+                        <span>Label</span>
+                        <input v-model="item.label" maxlength="30" placeholder="The Couple" />
+                      </label>
+                      <label class="m-field">
+                        <span>Menu label</span>
+                        <input v-model="item.shortLabel" maxlength="20" placeholder="Couple" />
+                      </label>
+                    </div>
+                  </div>
+                </fieldset>
               </template>
             </div>
           </div>
@@ -535,6 +679,9 @@
           <i class="fa-solid" :class="errorIssues.length ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'"></i>
           {{ shownIssues.length }}
         </button>
+        <button type="button" class="m-btn ghost" @click="openPreview">
+          <i class="fa-solid fa-eye"></i> Preview
+        </button>
         <button
           class="m-btn primary m-save"
           @click="save"
@@ -544,6 +691,29 @@
           {{ saving ? 'Saving…' : isDirty || !weddingCode ? 'Save' : 'Saved' }}
         </button>
       </footer>
+      <!-- Live preview: the invitation with the unsaved changes, full screen -->
+      <div v-if="previewOpen" class="m-preview" role="dialog" aria-modal="true" aria-label="Preview">
+        <header class="m-preview-bar">
+          <nav class="m-preview-pages" aria-label="Preview page">
+            <button
+              v-for="p in PREVIEW_PAGES"
+              :key="p.path"
+              type="button"
+              :class="{ active: previewPath === p.path }"
+              :aria-current="previewPath === p.path ? 'page' : undefined"
+              @click="previewPath = p.path"
+            >{{ p.label }}</button>
+          </nav>
+          <button type="button" class="m-preview-close" aria-label="Close preview" @click="previewOpen = false">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </header>
+        <iframe ref="previewFrame" :name="PREVIEW_FRAME_NAME" :src="previewSrc" title="Invitation preview"></iframe>
+        <p class="m-preview-note">
+          {{ previewHasSample ? 'Sample text fills the empty fields here; guests only see what you fill in.' : 'Unsaved changes show here; guests see them after you save.' }}
+        </p>
+      </div>
+
     </section>
     <VersionHistory v-model:open="historyOpen" :wedding-id="weddingId" :keep="limits.history" :read-only="readOnly" @restore="restoreVersion" />
     <HeroSyncDialog :options="heroSync" @update="saveNow" @keep="saveNow()" @cancel="heroSync = null" />
@@ -551,7 +721,7 @@
 </template>
 
 <script setup>
-import { ref, computed, h, nextTick, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, h, nextTick, watch, onMounted, onBeforeUnmount } from "vue";
 import Basic from "@/views/Basic.vue";
 import VersionHistory from "@/components/VersionHistory.vue";
 import HeroSyncDialog from "@/components/HeroSyncDialog.vue";
@@ -573,10 +743,15 @@ import { SOCIAL_TYPES, useSocialLinks } from "@/composables/socialLinks";
 import { parentsLineSuggestions, setParentName } from "@/utils/parentsLine";
 import { bioSuggestions, INTERESTS, MAX_INTERESTS, PROFESSIONS } from "@/utils/bioSuggestions";
 import InterestPills from "@/components/InterestPills.vue";
+import { unsplashCredit } from "@/utils/unsplash";
+import { usePrintCardChoice, PDF_CHOICE } from "@/composables/printCardChoice";
+import { HERO_OVERLAY_DEFAULTS, HERO_COLOR_PICKERS, COUNTDOWN_EXAMPLES, NAV_ICONS } from "@/config/editorOptions";
+import { isPreviewMessage, PREVIEW_CONFIG, PREVIEW_FRAME_NAME, PREVIEW_NAVIGATE, PREVIEW_READY, withSampleContent } from "@/utils/preview";
+import sampleWedding from "@/config/wedding.json";
 import { shareMessage, DEFAULT_SHARE_MESSAGE, SHARE_MESSAGE_SUGGESTIONS } from "@/utils/shareMessage";
 
 // Phone-first editor: one section open at a time, save bar pinned to the bottom.
-// Covers the everyday fields; rarer ones (navigation, labels) stay in Settings.vue.
+// Has every option of Settings.vue, laid out for small screens.
 const wedding = useWeddingStore();
 const auth = useAuthStore();
 const route = useRoute();
@@ -599,6 +774,7 @@ const groups = [
     label: "Appearance",
     sections: [
       { id: "theme", label: "Theme", icon: "fa-palette" },
+      { id: "navigation", label: "Navigation", icon: "fa-bars" },
     ],
   },
   {
@@ -638,6 +814,7 @@ const summaries = computed(() => {
     gallery: `${wedding.momentsPage.images.length} / ${limits.value.gallery} photos`,
     popup: wedding.saveTheDate.enabled ? plural(wedding.saveTheDate.images.length, "image") : "Off",
     site: wedding.site.monogram || "Title & monogram",
+    navigation: limits.value.editNavigation ? "Menu labels & icons" : "Plus · menu labels & icons",
   };
 });
 
@@ -815,6 +992,30 @@ const isHeroFrom = (s) =>
   && (!s.dateTexts.length || s.dateTexts.includes(wedding.hero.dateText))
   && (!s.timeText || wedding.hero.timeText === s.timeText)
   && (!s.locationText || wedding.hero.locationText === s.locationText);
+
+// Overlay over the background: unset follows the layout's default
+const overlayValue = computed({
+  get: () => (typeof wedding.hero.overlayOpacity === "number" ? wedding.hero.overlayOpacity : HERO_OVERLAY_DEFAULTS[wedding.hero.template] ?? HERO_OVERLAY_DEFAULTS.classic),
+  set: (v) => (wedding.hero.overlayOpacity = Number(v)),
+});
+const resetOverlay = () => delete wedding.hero.overlayOpacity;
+// Overlay and text colours: a theme role, or a custom #hex; the first role clears it
+const themeColors = computed(() => getTheme(wedding.theme).colors);
+const isHexColor = (v) => /^#[0-9a-f]{6}$/i.test(v || "");
+const pickedColor = (p) => wedding.hero[p.field] || p.roles[0].id;
+const pickHeroColor = (p, id) => {
+  if (id === p.roles[0].id) delete wedding.hero[p.field];
+  else wedding.hero[p.field] = id;
+};
+// Unsplash backgrounds credit their photographer (licence)
+const backgroundCredit = computed(() => unsplashCredit(wedding.hero.backgroundImage));
+
+// Printed invitation guests see on the home page (a saved card or an uploaded PDF)
+const { printCards, printCardsError, loadPrintCards, attachPrintCard, printPdf, printCardChoice, printCardMissing, printCardOutdated } =
+  usePrintCardChoice(wedding, weddingId);
+
+// Navigation icon picker: one open at a time
+const openIconPicker = ref("");
 
 const backgroundGallery = Object.keys(
   import.meta.glob("/public/images/bg-home/*.{jpg,jpeg,png,webp,avif}", { query: "?url" }),
@@ -1104,6 +1305,50 @@ const uploadMany = async (key, list, max, e) => {
   if (added) flash(`${plural(added, "image")} added, tap Save to keep them`, "warn");
 };
 
+/* ── Live preview ── */
+// Full-screen frame of the invitation site, sent the unsaved config as it changes
+const PREVIEW_PAGES = [
+  { path: "/", label: "Home" },
+  { path: "/couple", label: "Couple" },
+  { path: "/events", label: "Events" },
+  { path: "/story", label: "Story" },
+  { path: "/moments", label: "Moments" },
+];
+// The page the open section shows up on
+const SECTION_PAGES = { couple: "/couple", events: "/events", story: "/story", gallery: "/moments" };
+const previewOpen = ref(false);
+const previewPath = ref("/");
+const previewSrc = ref("/");
+const previewFrame = ref(null);
+const previewHasSample = ref(false);
+const openPreview = () => {
+  previewPath.value = SECTION_PAGES[openSection.value] ?? "/";
+  previewSrc.value = previewPath.value;
+  previewOpen.value = true;
+};
+const postToPreview = (msg) => previewFrame.value?.contentWindow?.postMessage(msg, window.location.origin);
+const sendPreviewConfig = () => {
+  const { config, filled } = withSampleContent(wedding.snapshot(), sampleWedding);
+  previewHasSample.value = filled;
+  postToPreview({ type: PREVIEW_CONFIG, config, plan: planId.value, sample: filled });
+};
+let previewFrameReq = 0;
+watch(() => wedding.$state, () => {
+  if (!previewOpen.value || previewFrameReq) return;
+  previewFrameReq = requestAnimationFrame(() => {
+    previewFrameReq = 0;
+    sendPreviewConfig();
+  });
+}, { deep: true });
+watch(previewPath, (path) => postToPreview({ type: PREVIEW_NAVIGATE, path }));
+const onPreviewMessage = (event) => {
+  if (!isPreviewMessage(event, previewFrame.value?.contentWindow) || event.data.type !== PREVIEW_READY) return;
+  sendPreviewConfig();
+  postToPreview({ type: PREVIEW_NAVIGATE, path: previewPath.value });
+};
+// Esc closes the preview (eg. with a keyboard attached)
+const onPreviewKey = (e) => { if (e.key === "Escape") previewOpen.value = false; };
+
 /* ── Leaving ── */
 const beforeUnload = (e) => {
   if (isDirty.value) e.preventDefault();
@@ -1111,12 +1356,18 @@ const beforeUnload = (e) => {
 onBeforeRouteLeave(() => !isDirty.value || confirm("You have unsaved changes. Leave anyway?"));
 onMounted(() => {
   loadSaved();
+  loadPrintCards();
   window.addEventListener("beforeunload", beforeUnload);
+  window.addEventListener("message", onPreviewMessage);
+  window.addEventListener("keydown", onPreviewKey);
 });
 onBeforeUnmount(() => {
   clearInterval(clock);
   clearTimeout(flashTimer);
+  cancelAnimationFrame(previewFrameReq);
   window.removeEventListener("beforeunload", beforeUnload);
+  window.removeEventListener("message", onPreviewMessage);
+  window.removeEventListener("keydown", onPreviewKey);
 });
 </script>
 
@@ -1395,6 +1646,11 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   &.three { grid-template-columns: 1fr 1.2fr 1fr; }
+  &.four {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    > .m-field > span { text-transform: capitalize; font-size: 0.72rem; }
+  }
 }
 
 // 16px stops iOS zooming into focused fields
@@ -1612,6 +1868,7 @@ textarea { resize: vertical; line-height: 1.5; }
   font-size: 0.82rem;
   font-weight: 500;
   font-family: inherit;
+  text-decoration: none;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   i { font-size: 0.7rem; color: var(--muted); }
@@ -1842,6 +2099,221 @@ textarea { resize: vertical; line-height: 1.5; }
   text-decoration: none;
 }
 
+/* ── Home page look ── */
+.m-bg { position: relative; }
+
+// Unsplash photographer, along the bottom of the thumbnail
+.m-credit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 4px 3px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-range {
+  > span { display: flex; align-items: center; gap: 6px; }
+  strong { color: var(--accent); }
+  input[type="range"] {
+    min-height: 0;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    appearance: auto;
+    accent-color: var(--accent);
+  }
+}
+
+.m-reset {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+// Theme colours as round swatches; the last one opens the colour picker
+.m-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.m-swatch {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+  &.selected { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+}
+
+.m-swatch-custom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: conic-gradient(#e57373, #ffd54f, #81c784, #64b5f6, #ba68c8, #e57373);
+  i { position: relative; z-index: 1; color: #fff; font-size: 0.75rem; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); pointer-events: none; }
+  input[type="color"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+/* ── Navigation ── */
+.m-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  &:disabled { opacity: 0.55; }
+}
+
+.m-item-head:has(.m-nav-icon) { justify-content: flex-start; strong { text-transform: capitalize; } }
+
+.m-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 0.95rem;
+  cursor: pointer;
+  &.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+}
+
+.m-nav-caret {
+  color: var(--muted);
+  font-size: 0.6rem;
+  transition: transform 0.2s;
+  .open > & { transform: rotate(180deg); }
+}
+
+.m-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+
+  button {
+    aspect-ratio: 1;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font-size: 0.95rem;
+    cursor: pointer;
+    &.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  }
+}
+
+/* ── Live preview ── */
+.m-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+
+  iframe {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    background: #fff;
+  }
+}
+
+.m-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 10px;
+  padding-top: calc(6px + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  background: rgba(253, 246, 236, 0.96);
+}
+
+.m-preview-pages {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+
+  button {
+    flex-shrink: 0;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    &.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  }
+}
+
+.m-preview-close {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.m-preview-note {
+  margin: 0;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}
+
 /* ── Bottom bar ── */
 .m-bottom {
   position: fixed;
@@ -1879,6 +2351,13 @@ textarea { resize: vertical; line-height: 1.5; }
 }
 
 .m-save { flex: 1; }
+
+.m-btn.ghost {
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+}
 
 .m-issues {
   min-width: 60px;

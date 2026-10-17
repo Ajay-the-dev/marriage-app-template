@@ -30,8 +30,21 @@
                     </div>
                 </div>
 
+                <!-- Printed invitation attached in Settings -->
+                <div v-if="printCard || cardPdf" class="hero-actions">
+                    <a v-if="cardPdf" :href="cardPdf.url" target="_blank" rel="noopener" class="hero-create">
+                        <i class="fa-solid fa-scroll me-2"></i>Invitation card
+                    </a>
+                    <button v-else type="button" class="hero-create" @click="cardOpen = true">
+                        <i class="fa-solid fa-scroll me-2"></i>Invitation card
+                    </button>
+                </div>
+
                 <!-- Signed-out visitors go via login (the settings guard redirects them) -->
                 <div v-if="showCreate" class="hero-actions">
+                    <RouterLink v-if="showHelp" :to="{ name: 'help' }" class="hero-create">
+                        <i class="fa-regular fa-circle-question me-2"></i>How it works
+                    </RouterLink>
                     <RouterLink :to="{ name: 'settings' }" class="hero-create">
                         <i class="fa-solid fa-pen-to-square me-2"></i>{{ auth.isLoggedIn ? 'My invitations' : 'Login to create' }}
                     </RouterLink>
@@ -48,17 +61,40 @@
                 on <a :href="photoCredit.unsplashUrl" target="_blank" rel="noopener">Unsplash</a>
             </div>
         </div>
+        <!-- Drawn off screen for the first-visit auto download -->
+        <div v-if="autoDownloading" class="card-offscreen" aria-hidden="true">
+            <PrintCard ref="autoCardEl" readonly :card="printCard" :card-style="cardStyle" :card-px="cardPx" exporting />
+        </div>
+        <Teleport to="body">
+            <div v-if="cardOpen && printCard" class="card-viewer" role="dialog" aria-modal="true" aria-label="Invitation card" @click.self="cardOpen = false">
+                <div class="card-viewer-bar">
+                    <button type="button" class="hero-create" :disabled="exporting" @click="downloadPdf">
+                        <i class="fa-solid me-2" :class="exporting ? 'fa-spinner fa-spin' : 'fa-download'"></i>{{ exporting ? 'Preparing…' : 'Download PDF' }}
+                    </button>
+                    <button type="button" class="hero-create" title="Close" @click="cardOpen = false">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <PrintCard ref="printCardEl" readonly :card="printCard" :card-style="cardStyle" :card-px="cardPx" :scale="cardScale" :exporting="exporting" />
+            </div>
+        </Teleport>
     </Basic>    
 </template>
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue";
 import Basic from "@/views/Basic.vue";
 import gsap from "gsap";
 import { useRoute, useRouter } from "vue-router";
-import { useWeddingStore } from "@/stores/wedding";
+import { useWeddingStore, weddingStatus } from "@/stores/wedding";
+import { isPreviewFrame } from "@/utils/preview";
 import { PLACEHOLDER_BACKGROUND } from "@/config/blankWedding";
 import { useAuthStore } from "@/stores/auth";
+import { listWeddings } from "@/services/weddings";
 import { unsplashCredit } from "@/utils/unsplash";
+import PrintCard from "@/components/PrintCard.vue";
+import { downloadUrl } from "@/services/cloudinary";
+import { getTheme, fontsUrl } from "@/config/themes";
+import { getPaper, sanitizeCardHtml, usedFontSpecs, cardStyleFor, downloadCardPdf, pdfFileName, MM_TO_PX } from "@/utils/traditionalCard";
 
 const wedding = useWeddingStore();
 const auth = useAuthStore();
@@ -66,6 +102,19 @@ const route = useRoute();
 // Not on shared invitations (/<code>) — guests shouldn't see it.
 // Waits for Firebase to restore the session so the label doesn't flip.
 const showCreate = computed(() => !route.params.code && auth.initialized);
+
+// "How it works" for visitors who haven't made an invitation yet
+const hasInvitations = ref(null);
+watch(() => auth.user?.uid, async (uid) => {
+  hasInvitations.value = null;
+  if (!uid || route.params.code) return;
+  try {
+    hasInvitations.value = (await listWeddings(uid)).length > 0;
+  } catch {
+    hasInvitations.value = true; // unknown: leave the button out
+  }
+}, { immediate: true });
+const showHelp = computed(() => !auth.isLoggedIn || hasInvitations.value === false);
 
 const router = useRouter();
 const logout = async () => {
@@ -92,6 +141,105 @@ const overlayStyle = computed(() => {
   if (text) style["--hero-text"] = style["--hero-text-soft"] = text;
   return style;
 });
+
+// ── Printed invitation (a copy of a saved card, attached in Settings) ──
+const printCard = computed(() => {
+    const c = hero.value.printCard;
+    return c?.type !== "pdf" && c?.html ? { ...c, html: sanitizeCardHtml(c.html) } : null;
+});
+// Or a PDF the couple uploaded (only https links)
+const cardPdf = computed(() => {
+    const c = hero.value.printCard;
+    return c?.type === "pdf" && /^https:\/\//.test(c.url || "") ? c : null;
+});
+const cardOpen = ref(false);
+const cardTheme = computed(() => getTheme(printCard.value?.theme || wedding.theme));
+const cardPaper = computed(() => getPaper(printCard.value?.paper));
+const cardStyle = computed(() => cardStyleFor(cardTheme.value, cardPaper.value));
+const cardPx = computed(() => ({ width: cardPaper.value.width * MM_TO_PX, height: cardPaper.value.height * MM_TO_PX }));
+// Fits the card inside the window, leaving room for the buttons
+const viewport = ref({ width: window.innerWidth, height: window.innerHeight });
+const onResize = () => (viewport.value = { width: window.innerWidth, height: window.innerHeight });
+const cardScale = computed(() => Math.min(1, (viewport.value.width - 32) / cardPx.value.width, (viewport.value.height - 120) / cardPx.value.height));
+
+// The card's fonts load the first time it's opened
+const loadCardFonts = () => {
+    const specs = [...cardTheme.value.googleFonts, ...usedFontSpecs(printCard.value.html)];
+    let link = document.getElementById("print-card-fonts");
+    if (!link) {
+        link = document.createElement("link");
+        link.id = "print-card-fonts";
+        link.rel = "stylesheet";
+        document.head.appendChild(link);
+    }
+    link.href = fontsUrl([...new Map(specs.map((f) => [f.split(":")[0], f])).values()]);
+};
+watch(cardOpen, (open) => open && printCard.value && loadCardFonts());
+
+const printCardEl = ref(null);
+const exporting = ref(false);
+const savePdf = (cardEl) =>
+    downloadCardPdf(cardEl, {
+        paper: cardPaper.value,
+        background: cardTheme.value.colors.cream,
+        title: `${wedding.groom.shortName} & ${wedding.bride.shortName} invitation`,
+        fileName: pdfFileName(wedding.$state),
+    });
+const downloadPdf = async () => {
+    exporting.value = true;
+    try {
+        await savePdf(printCardEl.value.cardEl);
+    } catch (error) {
+        console.error("Could not create PDF:", error);
+        alert(`Could not create the PDF: ${error.message}`);
+    } finally {
+        exporting.value = false;
+    }
+};
+
+// Site setting: guests get the PDF once, the first time they open a shared invitation's
+// home page in this browser (not in the editor's preview)
+const autoCardEl = ref(null);
+const autoDownloading = ref(false);
+const autoDownloadKey = computed(() => `autoDownloaded:${route.params.code}`);
+const autoDownloaded = () => {
+    try { return !!localStorage.getItem(autoDownloadKey.value); } catch { return false; }
+};
+const remember = () => {
+    try { localStorage.setItem(autoDownloadKey.value, "1"); } catch { /* may download again next time */ }
+};
+const autoDownload = async () => {
+    if (autoDownloading.value || !route.params.code || isPreviewFrame || !wedding.site.autoDownload || autoDownloaded()) return;
+    if (cardPdf.value) {
+        const a = document.createElement("a");
+        a.href = downloadUrl(cardPdf.value.url);
+        a.download = cardPdf.value.name || "invitation.pdf";
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        remember();
+        return;
+    }
+    if (!printCard.value) return;
+    autoDownloading.value = true;
+    try {
+        loadCardFonts();
+        await nextTick();
+        await savePdf(autoCardEl.value.cardEl);
+        remember();
+    } catch (error) {
+        console.warn("Could not auto download the invitation:", error);
+    } finally {
+        autoDownloading.value = false;
+    }
+};
+// The invitation loads after the page mounts
+watch(() => weddingStatus.value === "ready" && wedding.site.autoDownload && !!(printCard.value || cardPdf.value), (ready) => ready && autoDownload(), { immediate: true });
+
+const onKeydown = (e) => {
+    if (e.key === "Escape") cardOpen.value = false;
+};
 
 const bgImage = ref(null);
 const heroContent = ref(null);
@@ -132,6 +280,9 @@ onMounted(() => {
         { scale: 1.25, duration: 20, ease: "sine.inOut" }
     );
 
+    window.addEventListener("resize", onResize);
+    window.addEventListener("keydown", onKeydown);
+
     timer = setInterval(() => {
         now.value = new Date();
     }, 1000);
@@ -139,6 +290,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     if (timer) clearInterval(timer);
+    window.removeEventListener("resize", onResize);
+    window.removeEventListener("keydown", onKeydown);
 });
 </script>
 <style scoped>
@@ -313,6 +466,36 @@ onBeforeUnmount(() => {
 .hero-create:hover {
     background-color: var(--hero-text, var(--gold));
     color: var(--dark);
+}
+
+/* ── Printed invitation viewer ── */
+.card-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.card-offscreen {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    pointer-events: none;
+}
+
+.card-viewer-bar {
+    display: flex;
+    gap: 0.75rem;
+
+    .hero-create {
+        background-color: rgba(0, 0, 0, 0.35);
+    }
 }
 
 .full-screen-img {

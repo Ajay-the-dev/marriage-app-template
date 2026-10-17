@@ -11,6 +11,9 @@ const clone = (value) => JSON.parse(JSON.stringify(value))
 let loadedKey = null
 let loading = null
 
+// Whether the store holds this wedding (as Settings loaded it), eg. to patch it after a direct save
+export const holdsWedding = (id) => loadedKey === `wedding:${id}`
+
 // The code of the wedding currently shown (null until its first save)
 export const weddingCode = ref(null)
 // 'loading' | 'ready' | 'not-found' | 'blocked' (over its owner's plan limits) | 'hidden' (by its owner)

@@ -10,6 +10,9 @@
             <h1>My invitations</h1>
           </div>
           <div class="toolbar-actions">
+            <router-link :to="{ name: 'help' }" class="btn-ghost" title="How to set up and send your invitation">
+              <i class="fa-regular fa-circle-question"></i><span>Help</span>
+            </router-link>
             <span v-if="auth.user" class="user-chip" :title="auth.user.email">
               <img v-if="auth.user.photoURL" :src="auth.user.photoURL" alt="" referrerpolicy="no-referrer" />
               <i v-else class="fa-solid fa-circle-user"></i>
@@ -104,6 +107,9 @@
               >
                 <i class="fa-solid" :class="hidingId === w.id ? 'fa-spinner fa-spin' : w.hidden ? 'fa-eye' : 'fa-eye-slash'"></i>
               </button>
+              <router-link :to="{ name: 'traditional', query: { id: w.id } }" class="btn-ghost" title="Printed invitation (PDF)">
+                <i class="fa-solid fa-file-pdf"></i>
+              </router-link>
               <button v-if="w.code" class="btn-ghost" @click="copyLink(w)" title="Copy the invitation message with the guest link">
                 <i class="fa-solid" :class="copiedId === w.id ? 'fa-check' : 'fa-link'"></i>
               </button>

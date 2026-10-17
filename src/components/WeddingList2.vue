@@ -7,6 +7,9 @@
           <i class="fa-solid fa-arrow-left"></i>
         </router-link>
         <h1>Invitations</h1>
+        <router-link :to="{ name: 'help-mobile' }" class="m-icon" aria-label="Help">
+          <i class="fa-regular fa-circle-question"></i>
+        </router-link>
         <button v-if="auth.user" type="button" class="m-avatar" aria-label="Account" @click="accountOpen = true">
           <img v-if="auth.user.photoURL" :src="auth.user.photoURL" alt="" referrerpolicy="no-referrer" />
           <span v-else>{{ initials }}</span>
@@ -132,6 +135,9 @@
                 <i class="fa-solid fa-arrow-up-right-from-square"></i>Open guest view
               </a>
             </template>
+            <router-link :to="{ name: 'traditional', query: { id: sheetFor.id } }" class="m-sheet-item">
+              <i class="fa-solid fa-file-pdf"></i>Printed invitation
+            </router-link>
             <router-link :to="{ name: 'edit-wedding', params: { id: sheetFor.id }, query: { view: 'desktop' } }" class="m-sheet-item">
               <i class="fa-solid fa-sliders"></i>Full editor
             </router-link>

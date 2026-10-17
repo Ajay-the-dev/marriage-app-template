@@ -11,7 +11,7 @@
       </div>
 
       <nav class="nav-links">
-        <router-link v-for="item in desktopItems" :key="item.to" :to="item.to" class="desktop-nav-item" active-class="active">
+        <router-link v-for="item in desktopItems" :key="item.to" :to="item.to" class="desktop-nav-item" active-class="" exact-active-class="active">
           <i class="fa-solid nav-mini-icon" :class="item.icon"></i> {{ item.label }}
         </router-link>
       </nav>
@@ -28,7 +28,7 @@
           </div>
         </button>
 
-        <router-link :to="item.to" class="menu-item" active-class="active">
+        <router-link :to="item.to" class="menu-item" active-class="" exact-active-class="active">
           <i class="fa-solid menu-icon" :class="item.icon"></i>
           <span class="menu-label">{{ item.shortLabel }}</span>
         </router-link>
